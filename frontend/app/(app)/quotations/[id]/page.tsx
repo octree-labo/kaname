@@ -26,7 +26,7 @@ export default function QuotationDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (!quotation || !lines) return <p className="text-sm text-slate-400">読み込み中...</p>;
+  if (!quotation || !lines) return <p className="text-sm text-slate-600">読み込み中...</p>;
 
   async function handleApprove() {
     setError(null);
@@ -89,7 +89,7 @@ export default function QuotationDetailPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">見積 {quotation.quotationNo}</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-slate-600">
             承認状態: {formatApprovalStatus(quotation.approvalStatus)}
           </p>
         </div>
@@ -98,7 +98,7 @@ export default function QuotationDetailPage() {
             href={pdfUrl(`/api/quotations/${quotationId}/pdf`)}
             target="_blank"
             rel="noreferrer"
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
           >
             PDF表示
           </a>
@@ -115,13 +115,13 @@ export default function QuotationDetailPage() {
       </div>
 
       <dl className="grid grid-cols-2 gap-x-6 gap-y-1 rounded-lg border border-slate-200 bg-white p-4 text-sm">
-        <dt className="text-slate-500">取引先ID</dt>
+        <dt className="text-slate-600">取引先ID</dt>
         <dd>{quotation.partnerId}</dd>
-        <dt className="text-slate-500">見積日</dt>
+        <dt className="text-slate-600">見積日</dt>
         <dd>{quotation.quotationDate}</dd>
-        <dt className="text-slate-500">見積期限</dt>
+        <dt className="text-slate-600">見積期限</dt>
         <dd>{quotation.expiryDate ?? "-"}</dd>
-        <dt className="text-slate-500">見積条件</dt>
+        <dt className="text-slate-600">見積条件</dt>
         <dd>{quotation.conditionText ?? "-"}</dd>
       </dl>
 
@@ -130,7 +130,7 @@ export default function QuotationDetailPage() {
         <div className="mt-3 overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500">
+              <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-600">
                 <th className="px-3 py-2">選択</th>
                 <th className="px-3 py-2">No</th>
                 <th className="px-3 py-2">商品ID</th>
@@ -174,7 +174,7 @@ export default function QuotationDetailPage() {
 
       <section className="rounded-lg border border-slate-200 bg-white p-5">
         <h2 className="text-sm font-semibold text-slate-700">受注確定</h2>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-slate-600">
           伝票単位で全明細を一括確定するか、上表でチェックした明細のみを指定数量で確定できます（数量未入力の場合は残数がそのまま使われます）。
         </p>
         {error && <p className="mt-2 text-sm text-red-600">{error}</p>}

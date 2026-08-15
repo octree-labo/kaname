@@ -22,15 +22,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <Nav />
       <div className="flex flex-1 flex-col">
         <header className="flex h-14 items-center justify-end gap-4 border-b border-slate-200 bg-white px-6">
-          {isLoading && <span className="text-sm text-slate-400">読み込み中...</span>}
+          {isLoading && <span className="text-sm text-slate-600">読み込み中...</span>}
           {!isLoading && !error && user && (
             <>
-              <span className="text-sm text-slate-600">
+              <span className="text-sm text-slate-700">
                 {user.name ?? user.email}
               </span>
               <button
                 onClick={handleLogout}
-                className="rounded-md border border-slate-300 px-3 py-1 text-sm text-slate-600 hover:bg-slate-100"
+                className="rounded-md border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-100"
               >
                 ログアウト
               </button>

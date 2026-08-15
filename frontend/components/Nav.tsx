@@ -49,7 +49,7 @@ export function Nav() {
       </Link>
       {groups.map((group) => (
         <div key={group.label}>
-          <p className="px-2 text-xs font-medium uppercase tracking-wide text-slate-400">
+          <p className="px-2 text-xs font-medium uppercase tracking-wide text-slate-600">
             {group.label}
           </p>
           <ul className="mt-2 space-y-0.5">
@@ -62,7 +62,7 @@ export function Nav() {
                     className={`block rounded-md px-2 py-1.5 text-sm ${
                       active
                         ? "bg-slate-900 text-white"
-                        : "text-slate-600 hover:bg-slate-100"
+                        : "text-slate-700 hover:bg-slate-100"
                     }`}
                   >
                     {item.label}

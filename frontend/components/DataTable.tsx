@@ -22,7 +22,7 @@ export function DataTable<T extends { id: number }>({
 }) {
   if (rows.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-400">
+      <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-600">
         {emptyMessage}
       </div>
     );
@@ -32,7 +32,7 @@ export function DataTable<T extends { id: number }>({
     <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
       <table className="min-w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+          <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-600">
             {columns.map((col) => (
               <th
                 key={col.key}

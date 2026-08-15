@@ -28,7 +28,7 @@ export function DocumentDetailPage({ config }: { config: DocumentModuleConfig })
   const params = useParams<{ id: string }>();
   const { data } = useSWR<DocDetail>(`${config.apiPath}/${params.id}`, fetcher);
 
-  if (!data) return <p className="text-sm text-slate-400">読み込み中...</p>;
+  if (!data) return <p className="text-sm text-slate-600">読み込み中...</p>;
 
   const total = data.lines.reduce((sum, l) => sum + Number(l.amount), 0);
 
@@ -39,13 +39,13 @@ export function DocumentDetailPage({ config }: { config: DocumentModuleConfig })
           {config.label} {String(data[config.noField] ?? "")}
         </h1>
         <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
-          <dt className="text-slate-500">取引先ID</dt>
+          <dt className="text-slate-600">取引先ID</dt>
           <dd>{data.partnerId}</dd>
-          <dt className="text-slate-500">{config.dateLabel}</dt>
+          <dt className="text-slate-600">{config.dateLabel}</dt>
           <dd>{String(data[config.dateField] ?? "-")}</dd>
           {config.hasStatus && (
             <>
-              <dt className="text-slate-500">状態</dt>
+              <dt className="text-slate-600">状態</dt>
               <dd>{formatDocumentStatus(String(data.status ?? ""))}</dd>
             </>
           )}
@@ -57,7 +57,7 @@ export function DocumentDetailPage({ config }: { config: DocumentModuleConfig })
         <div className="mt-3 overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500">
+              <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-600">
                 <th className="px-3 py-2">No</th>
                 {config.lineKind === "product" && (
                   <>
@@ -82,7 +82,7 @@ export function DocumentDetailPage({ config }: { config: DocumentModuleConfig })
                     </>
                   )}
                   {config.upstreamLineField && (
-                    <td className="px-3 py-2 text-slate-500">
+                    <td className="px-3 py-2 text-slate-600">
                       {line[config.upstreamLineField] != null ? String(line[config.upstreamLineField]) : "(直接入力)"}
                     </td>
                   )}

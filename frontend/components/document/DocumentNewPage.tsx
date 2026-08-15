@@ -107,7 +107,7 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
             <button
               type="button"
               onClick={addLine}
-              className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100"
+              className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
             >
               + 行を追加
             </button>
@@ -118,7 +118,7 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
               ? productLines.map((line, i) => (
                   <div key={i} className="flex items-end gap-2 rounded-md border border-slate-200 p-3">
                     <div className="flex-1">
-                      <label className="block text-xs text-slate-500">商品ID</label>
+                      <label className="block text-xs text-slate-600">商品ID</label>
                       <input
                         required
                         value={line.productId}
@@ -131,7 +131,7 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
                       />
                     </div>
                     <div className="w-24">
-                      <label className="block text-xs text-slate-500">数量</label>
+                      <label className="block text-xs text-slate-600">数量</label>
                       <input
                         required
                         type="number"
@@ -146,7 +146,7 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
                       />
                     </div>
                     <div className="w-28">
-                      <label className="block text-xs text-slate-500">単価</label>
+                      <label className="block text-xs text-slate-600">単価</label>
                       <input
                         required
                         type="number"
@@ -162,7 +162,7 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
                     </div>
                     {config.upstreamLineField && (
                       <div className="w-40">
-                        <label className="block text-xs text-slate-500">{config.upstreamLabel}</label>
+                        <label className="block text-xs text-slate-600">{config.upstreamLabel}</label>
                         <input
                           value={line.upstreamLineId}
                           onChange={(e) =>
@@ -177,7 +177,7 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
                     <button
                       type="button"
                       onClick={() => removeLine(i)}
-                      className="rounded-md border border-slate-300 px-2 py-1.5 text-xs text-slate-500 hover:bg-slate-100"
+                      className="rounded-md border border-slate-300 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-100"
                     >
                       削除
                     </button>
@@ -186,7 +186,7 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
               : amountLines.map((line, i) => (
                   <div key={i} className="flex items-end gap-2 rounded-md border border-slate-200 p-3">
                     <div className="w-32">
-                      <label className="block text-xs text-slate-500">金額</label>
+                      <label className="block text-xs text-slate-600">金額</label>
                       <input
                         required
                         type="number"
@@ -202,7 +202,7 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
                     </div>
                     {config.upstreamLineField && (
                       <div className="w-48">
-                        <label className="block text-xs text-slate-500">{config.upstreamLabel}</label>
+                        <label className="block text-xs text-slate-600">{config.upstreamLabel}</label>
                         <input
                           value={line.upstreamLineId}
                           onChange={(e) =>
@@ -217,7 +217,7 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
                     <button
                       type="button"
                       onClick={() => removeLine(i)}
-                      className="rounded-md border border-slate-300 px-2 py-1.5 text-xs text-slate-500 hover:bg-slate-100"
+                      className="rounded-md border border-slate-300 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-100"
                     >
                       削除
                     </button>

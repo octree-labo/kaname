@@ -111,7 +111,7 @@ export default function NewPartnerPage() {
             onChange={(e) => setEffectiveDate(e.target.value)}
             className="mt-1 w-full"
           />
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-slate-600">
             本日日付＝即時反映。未来日付を指定すると、その日付を境に自動的に反映されます。
           </p>
         </div>

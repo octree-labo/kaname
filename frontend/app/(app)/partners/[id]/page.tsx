@@ -52,7 +52,7 @@ export default function PartnerDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  if (!partner) return <p className="text-sm text-slate-400">読み込み中...</p>;
+  if (!partner) return <p className="text-sm text-slate-600">読み込み中...</p>;
   const current = partner.currentDetail;
 
   function openForm() {
@@ -93,7 +93,7 @@ export default function PartnerDetailPage() {
       <div>
         <h1 className="text-xl font-semibold text-slate-900">
           {current?.name ?? "(未設定)"}
-          <span className="ml-2 text-sm font-normal text-slate-400">{partner.partnerCode}</span>
+          <span className="ml-2 text-sm font-normal text-slate-600">{partner.partnerCode}</span>
         </h1>
       </div>
 
@@ -102,26 +102,26 @@ export default function PartnerDetailPage() {
           <h2 className="text-sm font-semibold text-slate-700">現在の情報</h2>
           <button
             onClick={openForm}
-            className="rounded-md border border-slate-300 px-3 py-1 text-sm text-slate-600 hover:bg-slate-100"
+            className="rounded-md border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-100"
           >
             情報を変更
           </button>
         </div>
         {current ? (
           <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-            <dt className="text-slate-500">会社名</dt>
+            <dt className="text-slate-600">会社名</dt>
             <dd>{current.name}</dd>
-            <dt className="text-slate-500">代表者</dt>
+            <dt className="text-slate-600">代表者</dt>
             <dd>{current.representativeName ?? "-"}</dd>
-            <dt className="text-slate-500">住所</dt>
+            <dt className="text-slate-600">住所</dt>
             <dd>{current.address ?? "-"}</dd>
-            <dt className="text-slate-500">電話番号</dt>
+            <dt className="text-slate-600">電話番号</dt>
             <dd>{current.phone ?? "-"}</dd>
-            <dt className="text-slate-500">適用開始日</dt>
+            <dt className="text-slate-600">適用開始日</dt>
             <dd>{current.effectiveDate}</dd>
           </dl>
         ) : (
-          <p className="mt-3 text-sm text-slate-400">現在有効な情報がありません。</p>
+          <p className="mt-3 text-sm text-slate-600">現在有効な情報がありません。</p>
         )}
 
         {showForm && (
@@ -136,7 +136,7 @@ export default function PartnerDetailPage() {
                 onChange={(e) => setEffectiveDate(e.target.value)}
                 className="mt-1 w-48"
               />
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-slate-600">
                 本日日付＝即時反映。将来日付を指定すると、その日を境に自動的に切り替わります（例：来月の社長交代）。過去日付なら遡及訂正にも使えます。
               </p>
             </div>
@@ -177,7 +177,7 @@ export default function PartnerDetailPage() {
               <button
                 type="button"
                 onClick={() => setShowForm(false)}
-                className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-100"
+                className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100"
               >
                 キャンセル
               </button>
@@ -191,7 +191,7 @@ export default function PartnerDetailPage() {
         <div className="mt-3 overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500">
+              <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-600">
                 <th className="px-3 py-2">適用開始日</th>
                 <th className="px-3 py-2">会社名</th>
                 <th className="px-3 py-2">代表者</th>
@@ -208,7 +208,7 @@ export default function PartnerDetailPage() {
                   <td className="px-3 py-2">{d.representativeName ?? "-"}</td>
                   <td className="px-3 py-2">{d.address ?? "-"}</td>
                   <td className="px-3 py-2">{d.remarks ?? "-"}</td>
-                  <td className="px-3 py-2 text-slate-400">{d.createdAt.slice(0, 16).replace("T", " ")}</td>
+                  <td className="px-3 py-2 text-slate-600">{d.createdAt.slice(0, 16).replace("T", " ")}</td>
                 </tr>
               ))}
             </tbody>
@@ -218,11 +218,11 @@ export default function PartnerDetailPage() {
 
       <section className="rounded-lg border border-slate-200 bg-white p-5">
         <h2 className="text-sm font-semibold text-slate-700">取引履歴</h2>
-        <p className="mt-1 text-xs text-slate-500">見積/受注/発注/仕入/売上/入金/支払の横断参照</p>
+        <p className="mt-1 text-xs text-slate-600">見積/受注/発注/仕入/売上/入金/支払の横断参照</p>
         <div className="mt-3 overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500">
+              <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-600">
                 <th className="px-3 py-2">種別</th>
                 <th className="px-3 py-2">伝票番号</th>
                 <th className="px-3 py-2">日付</th>

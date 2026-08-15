@@ -16,7 +16,7 @@ export default function DashboardPage() {
   return (
     <div>
       <h1 className="text-xl font-semibold text-slate-900">ダッシュボード</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-slate-600">
         各業務モジュールへのショートカットです。
       </p>
 
@@ -28,7 +28,7 @@ export default function DashboardPage() {
             className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-400"
           >
             <p className="font-medium text-slate-900">{card.label}</p>
-            <p className="mt-1 text-sm text-slate-500">{card.desc}</p>
+            <p className="mt-1 text-sm text-slate-600">{card.desc}</p>
           </Link>
         ))}
       </div>

@@ -24,7 +24,7 @@ export default function InventoryPage() {
         <div className="mt-3 overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500">
+              <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-600">
                 <th className="px-3 py-2">商品ID</th>
                 <th className="px-3 py-2">倉庫ID</th>
                 <th className="px-3 py-2 text-right">在庫数</th>
@@ -48,7 +48,7 @@ export default function InventoryPage() {
         <div className="mt-3 overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500">
+              <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-600">
                 <th className="px-3 py-2">引当段階</th>
                 <th className="px-3 py-2">商品ID</th>
                 <th className="px-3 py-2">倉庫ID</th>
@@ -63,7 +63,7 @@ export default function InventoryPage() {
                   <td className="px-3 py-2">{a.productId}</td>
                   <td className="px-3 py-2">{a.warehouseId ?? "-"}</td>
                   <td className="px-3 py-2 text-right">{formatNumber(a.quantity)}</td>
-                  <td className="px-3 py-2 text-slate-500">
+                  <td className="px-3 py-2 text-slate-600">
                     {a.quotationLineId ?? a.orderLineId ?? a.salesLineId ?? "-"}
                   </td>
                 </tr>
