@@ -64,6 +64,17 @@ class AllocationStage(str, enum.Enum):
     sales = "sales"
 
 
+class UserRole(str, enum.Enum):
+    owner = "owner"
+    member = "member"
+
+
+class UserStatus(str, enum.Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+
+
 def _pg_enum(python_enum: type[enum.Enum], name: str) -> SAEnum:
     return SAEnum(
         python_enum,
@@ -84,6 +95,10 @@ class User(Base):
     employee_code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    role: Mapped[UserRole] = mapped_column(_pg_enum(UserRole, "user_role"), nullable=False, default=UserRole.member)
+    status: Mapped[UserStatus] = mapped_column(
+        _pg_enum(UserStatus, "user_status"), nullable=False, default=UserStatus.pending
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

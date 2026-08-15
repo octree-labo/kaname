@@ -1,8 +1,12 @@
 """Google OAuth ログインとセッションによるアクセス制御。
 
-- kaname.ajesta.work を使えるのは ALLOWED_EMAILS に含まれるメールアドレスのみ。
+- ログインできるのは users.status = 'approved' のアカウントのみ。
+- 新規ユーザーは「アカウント申請」(/auth/apply/google) で status='pending' として登録され、
+  オーナーが承認するまでログインできない。
+- OWNER_EMAILS に含まれるメールアドレスは、初回ログイン時に自動的に
+  role='owner', status='approved' で登録される（オーナーの立ち上げ用ブートストラップ）。
 - ログイン状態は署名付きセッションCookie（starlette.SessionMiddleware）で保持する。
-- /auth/* 以外の API ルーターは get_current_user 依存関係で保護する。
+- /auth/* 以外の API ルーターは get_current_user（オーナー限定は get_current_owner）で保護する。
 """
 from __future__ import annotations
 
@@ -32,23 +36,65 @@ class SessionUser:
     id: int
     email: str
     name: str | None
+    role: models.UserRole
 
 
-def is_email_allowed(email: str) -> bool:
-    return email.strip().lower() in settings.allowed_emails
+def is_owner_bootstrap_email(email: str) -> bool:
+    return email.strip().lower() in settings.owner_emails
 
 
-def get_or_create_user(db: Session, *, email: str, name: str | None) -> models.User:
+def get_user_by_email(db: Session, email: str) -> models.User | None:
     email = email.strip().lower()
-    user = db.execute(select(models.User).where(models.User.email == email)).scalar_one_or_none()
+    return db.execute(select(models.User).where(models.User.email == email)).scalar_one_or_none()
+
+
+def provision_login_user(db: Session, *, email: str, name: str | None) -> models.User | None:
+    """ログイン試行時のユーザー解決。
+
+    未登録かつオーナーブートストラップ対象のメールアドレスであれば、
+    その場でオーナーとして自動登録する。それ以外の未登録メールアドレスは
+    None を返す（＝アカウント申請が必要）。
+    """
+    email = email.strip().lower()
+    user = get_user_by_email(db, email)
     if user is not None:
         if name and user.name != name:
             user.name = name
             db.commit()
         return user
 
+    if not is_owner_bootstrap_email(email):
+        return None
+
     employee_code = email.split("@")[0]
-    user = models.User(employee_code=employee_code, name=name or email, email=email)
+    user = models.User(
+        employee_code=employee_code,
+        name=name or email,
+        email=email,
+        role=models.UserRole.owner,
+        status=models.UserStatus.approved,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def create_pending_application(db: Session, *, email: str, name: str | None) -> models.User:
+    """アカウント申請の登録。既存ユーザーがいればそれをそのまま返す。"""
+    email = email.strip().lower()
+    user = get_user_by_email(db, email)
+    if user is not None:
+        return user
+
+    employee_code = email.split("@")[0]
+    user = models.User(
+        employee_code=employee_code,
+        name=name or email,
+        email=email,
+        role=models.UserRole.member,
+        status=models.UserStatus.pending,
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -57,12 +103,17 @@ def get_or_create_user(db: Session, *, email: str, name: str | None) -> models.U
 
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> SessionUser:
     email = request.session.get("user_email")
-    if not email or not is_email_allowed(email):
+    if not email:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="authentication required")
 
-    user = db.execute(select(models.User).where(models.User.email == email)).scalar_one_or_none()
-    if user is None:
-        # 許可済みだが users テーブルに未登録（初回コールバック前に手動でCookieを持ち込んだ等）
+    user = get_user_by_email(db, email)
+    if user is None or user.status != models.UserStatus.approved:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="authentication required")
 
-    return SessionUser(id=user.id, email=user.email, name=user.name)
+    return SessionUser(id=user.id, email=user.email, name=user.name, role=user.role)
+
+
+def get_current_owner(user: SessionUser = Depends(get_current_user)) -> SessionUser:
+    if user.role != models.UserRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="owner only")
+    return user

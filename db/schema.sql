@@ -12,15 +12,21 @@ CREATE TYPE approval_status   AS ENUM ('draft', 'pending', 'approved', 'rejected
 CREATE TYPE document_status   AS ENUM ('draft', 'confirmed', 'cancelled');
 CREATE TYPE price_type        AS ENUM ('sales', 'purchase');
 CREATE TYPE allocation_stage  AS ENUM ('quotation', 'order', 'sales');
+CREATE TYPE user_role         AS ENUM ('owner', 'member');
+CREATE TYPE user_status       AS ENUM ('pending', 'approved', 'rejected');
 
 -- ------------------------------------------------------------
--- ユーザー（承認者・作成者の参照用。認証/権限の詳細設計は別フェーズ）
+-- ユーザー（承認者・作成者の参照用、およびログインアカウント）
+-- role: owner=オーナーメニュー利用可 / member=一般利用者
+-- status: pending=アカウント申請中（未ログイン可） / approved=ログイン可 / rejected=却下
 -- ------------------------------------------------------------
 CREATE TABLE users (
   id             BIGSERIAL PRIMARY KEY,
   employee_code  VARCHAR(20)  UNIQUE NOT NULL,
   name           VARCHAR(100) NOT NULL,
   email          VARCHAR(255) UNIQUE NOT NULL,
+  role           user_role    NOT NULL DEFAULT 'member',
+  status         user_status  NOT NULL DEFAULT 'pending',
   is_active      BOOLEAN      NOT NULL DEFAULT TRUE,
   created_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
   updated_at     TIMESTAMPTZ  NOT NULL DEFAULT now()

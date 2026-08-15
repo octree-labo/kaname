@@ -7,7 +7,7 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
-from .models import ApprovalStatus, DocumentStatus, PartnerType, PriceType
+from .models import ApprovalStatus, DocumentStatus, PartnerType, PriceType, UserRole, UserStatus
 
 
 class CamelModel(BaseModel):
@@ -15,11 +15,22 @@ class CamelModel(BaseModel):
 
 
 # ------------------------------------------------------------
-# 認証
+# 認証 / ユーザー管理
 # ------------------------------------------------------------
 class CurrentUser(CamelModel):
     email: str
     name: str | None = None
+    role: UserRole
+
+
+class AdminUserOut(CamelModel):
+    id: int
+    employee_code: str
+    name: str
+    email: str
+    role: UserRole
+    status: UserStatus
+    created_at: datetime
 
 
 # ------------------------------------------------------------

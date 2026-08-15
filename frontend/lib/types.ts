@@ -11,6 +11,8 @@ export type ApprovalStatus = "draft" | "pending" | "approved" | "rejected";
 export type DocumentStatus = "draft" | "confirmed" | "cancelled";
 export type PriceType = "sales" | "purchase";
 export type AllocationStage = "quotation" | "order" | "sales";
+export type UserRole = "owner" | "member";
+export type UserStatus = "pending" | "approved" | "rejected";
 
 export interface PartnerDetailOut {
   id: number;
@@ -279,4 +281,15 @@ export interface InventoryAllocationOut {
 export interface CurrentUser {
   email: string;
   name: string | null;
+  role: UserRole;
+}
+
+export interface AdminUserOut {
+  id: number;
+  employeeCode: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  status: UserStatus;
+  createdAt: string;
 }

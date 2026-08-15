@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import useSWR from "swr";
+import { fetcher } from "@/lib/api";
+import type { CurrentUser } from "@/lib/types";
 
 const NAV_GROUPS: { label: string; items: { href: string; label: string }[] }[] = [
   {
@@ -32,13 +35,19 @@ const NAV_GROUPS: { label: string; items: { href: string; label: string }[] }[] 
 
 export function Nav() {
   const pathname = usePathname();
+  const { data: user } = useSWR<CurrentUser>("/auth/me", fetcher, { shouldRetryOnError: false });
+
+  const groups = [...NAV_GROUPS];
+  if (user?.role === "owner") {
+    groups.push({ label: "オーナー", items: [{ href: "/owner", label: "オーナーメニュー" }] });
+  }
 
   return (
     <nav className="flex h-full w-56 shrink-0 flex-col gap-6 overflow-y-auto border-r border-slate-200 bg-white px-4 py-6">
       <Link href="/" className="px-2 text-sm font-semibold text-slate-900">
         基幹業務システム
       </Link>
-      {NAV_GROUPS.map((group) => (
+      {groups.map((group) => (
         <div key={group.label}>
           <p className="px-2 text-xs font-medium uppercase tracking-wide text-slate-400">
             {group.label}

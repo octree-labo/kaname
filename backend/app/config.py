@@ -13,7 +13,9 @@ class Settings(BaseSettings):
     google_client_secret: str = ""
     google_redirect_uri: str = "http://localhost:8000/auth/google/callback"
 
-    allowed_emails_raw: str = Field(default="kasaubunts@gmail.com", alias="ALLOWED_EMAILS")
+    # 初回ログイン時にオーナーとして自動登録するメールアドレス（カンマ区切り）。
+    # それ以外のユーザーは「アカウント申請」→オーナー承認の経路でのみ利用者登録される。
+    owner_emails_raw: str = Field(default="kasaubunts@gmail.com", alias="OWNER_EMAILS")
 
     session_secret_key: str = "change-me"
     session_cookie_name: str = "kaname_session"
@@ -24,8 +26,8 @@ class Settings(BaseSettings):
     cookie_secure: bool = True
 
     @property
-    def allowed_emails(self) -> set[str]:
-        return {e.strip().lower() for e in self.allowed_emails_raw.split(",") if e.strip()}
+    def owner_emails(self) -> set[str]:
+        return {e.strip().lower() for e in self.owner_emails_raw.split(",") if e.strip()}
 
 
 @lru_cache

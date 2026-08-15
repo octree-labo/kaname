@@ -5,7 +5,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from .config import settings
-from .routers import auth, documents, inventory, masters
+from .routers import admin, auth, documents, inventory, masters
 
 app = FastAPI(title="基幹業務システム API", version="0.1.0")
 
@@ -34,6 +34,7 @@ app.include_router(auth.router)
 app.include_router(masters.router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
 app.include_router(inventory.router, prefix="/api")
+app.include_router(admin.router, prefix="/api")
 
 
 @app.get("/health")
