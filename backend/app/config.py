@@ -15,7 +15,9 @@ class Settings(BaseSettings):
 
     # 初回ログイン時にオーナーとして自動登録するメールアドレス（カンマ区切り）。
     # それ以外のユーザーは「アカウント申請」→オーナー承認の経路でのみ利用者登録される。
-    owner_emails_raw: str = Field(default="kasaubunts@gmail.com", alias="OWNER_EMAILS")
+    # 個人のメールアドレスをコードに残さないよう、既定値は空にしている
+    # （.env で必ず明示的に設定すること。未設定だとオーナーのブートストラップができない）。
+    owner_emails_raw: str = Field(default="", alias="OWNER_EMAILS")
 
     session_secret_key: str = "change-me"
     session_cookie_name: str = "kaname_session"

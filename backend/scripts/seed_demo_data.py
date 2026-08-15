@@ -78,7 +78,14 @@ PAYMENT_METHODS = ["銀行振込", "現金", "口座振替", "クレジットカ
 def main() -> None:
     db = SessionLocal()
 
-    admin = db.execute(select(models.User).where(models.User.email == "kasaubunts@gmail.com")).scalar_one()
+    admin = db.execute(
+        select(models.User).where(models.User.role == models.UserRole.owner).order_by(models.User.id)
+    ).scalars().first()
+    if admin is None:
+        raise SystemExit(
+            "オーナーユーザーが見つかりません。先に一度オーナーとしてログインするか、"
+            "db/migrations/0001_add_user_roles.sql で既存ユーザーをオーナーへ昇格させてください。"
+        )
 
     # ------------------------------------------------------------
     # 倉庫
