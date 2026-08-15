@@ -1,0 +1,1890 @@
+openapi: 3.0.3
+info:
+  title: 基幹業務システム API（第1フェーズ）
+  description: >
+    共通マスタ／顧客管理／販売管理チェーン（見積〜支払）／在庫引当 の骨子。
+    会計・人事給与・生産管理等は未着手のため未収録。
+  version: 0.1.0
+servers:
+  - url: https://api.example.local/v1
+
+tags:
+  - name: 共通マスタ
+  - name: 顧客管理
+  - name: 見積
+  - name: 受注
+  - name: 発注
+  - name: 仕入
+  - name: 売上
+  - name: 入金
+  - name: 支払
+  - name: 在庫
+
+# ============================================================
+# Paths
+# ============================================================
+paths:
+
+  # ---------------- 取引先（共通マスタ／顧客管理） ----------------
+  /partners:
+    get:
+      tags: [共通マスタ, 顧客管理]
+      summary: 取引先一覧検索
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: partnerType
+          in: query
+          schema:
+            $ref: '#/components/schemas/PartnerType'
+        - name: keyword
+          in: query
+          description: 会社名・取引先コードの部分一致
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartnerListResponse'
+    post:
+      tags: [共通マスタ]
+      summary: 取引先新規登録（初回のpartner_detailsを含む）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PartnerCreateRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Partner'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /partners/{partnerId}:
+    parameters:
+      - $ref: '#/components/parameters/PartnerIdParam'
+    get:
+      tags: [共通マスタ, 顧客管理]
+      summary: 取引先詳細取得（現在有効な属性を含む）
+      parameters:
+        - name: asOf
+          in: query
+          description: 指定日時点で有効な属性を取得（省略時は本日）
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartnerWithCurrentDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [共通マスタ]
+      summary: 取引先の基本フラグ更新（partner_type, is_active 等）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PartnerPatchRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Partner'
+
+  /partners/{partnerId}/details:
+    parameters:
+      - $ref: '#/components/parameters/PartnerIdParam'
+    get:
+      tags: [顧客管理]
+      summary: 属性の変更履歴一覧（＝変更履歴ログ）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PartnerDetail'
+    post:
+      tags: [顧客管理]
+      summary: 属性変更の登録（即時反映＝本日日付／日付指定反映＝将来 or 過去日付）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PartnerDetailInput'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartnerDetail'
+
+  /partners/{partnerId}/transactions:
+    parameters:
+      - $ref: '#/components/parameters/PartnerIdParam'
+    get:
+      tags: [顧客管理]
+      summary: 取引履歴の横断参照（見積/受注/発注/売上/仕入/入金/支払）
+      parameters:
+        - name: type
+          in: query
+          description: 絞り込み（省略時は全種別）
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [quotation, order, purchase_order, purchase, sales, receipt, payment]
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionHistoryResponse'
+
+  # ---------------- 商品／単価（共通マスタ） ----------------
+  /products:
+    get:
+      tags: [共通マスタ]
+      summary: 商品一覧検索
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: keyword
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+    post:
+      tags: [共通マスタ]
+      summary: 商品新規登録
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductInput'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+
+  /products/{productId}:
+    parameters:
+      - name: productId
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [共通マスタ]
+      summary: 商品詳細取得
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [共通マスタ]
+      summary: 商品更新
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductInput'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+
+  /price-master:
+    get:
+      tags: [共通マスタ]
+      summary: 単価マスタ検索（得意先別/仕入先別、有効期間で絞り込み）
+      parameters:
+        - name: priceType
+          in: query
+          schema:
+            $ref: '#/components/schemas/PriceType'
+        - name: partnerId
+          in: query
+          schema:
+            type: integer
+        - name: productId
+          in: query
+          schema:
+            type: integer
+        - name: asOf
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PriceMaster'
+    post:
+      tags: [共通マスタ]
+      summary: 単価登録
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PriceMasterInput'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PriceMaster'
+
+  # ---------------- 見積 ----------------
+  /quotations:
+    get:
+      tags: [見積]
+      summary: 見積伝票一覧検索
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: partnerId
+          in: query
+          schema:
+            type: integer
+        - name: approvalStatus
+          in: query
+          schema:
+            $ref: '#/components/schemas/ApprovalStatus'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Quotation'
+    post:
+      tags: [見積]
+      summary: 見積伝票作成（明細を含む）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuotationInput'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quotation'
+
+  /quotations/{quotationId}:
+    parameters:
+      - $ref: '#/components/parameters/QuotationIdParam'
+    get:
+      tags: [見積]
+      summary: 見積伝票詳細取得（明細を含む）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotationDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [見積]
+      summary: 見積伝票更新（承認前のみ許可）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuotationInput'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quotation'
+
+  /quotations/{quotationId}/lines:
+    parameters:
+      - $ref: '#/components/parameters/QuotationIdParam'
+    get:
+      tags: [見積]
+      summary: 見積明細一覧（残数を含む）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/QuotationLineWithRemaining'
+    post:
+      tags: [見積]
+      summary: 見積明細追加
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuotationLineInput'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotationLine'
+
+  /quotations/{quotationId}/approve:
+    parameters:
+      - $ref: '#/components/parameters/QuotationIdParam'
+    post:
+      tags: [見積]
+      summary: 見積承認（承認後はPDFに社印画像を埋め込み可能になる）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quotation'
+        '409':
+          description: すでに承認済み、または承認権限がない
+
+  /quotations/{quotationId}/pdf:
+    parameters:
+      - $ref: '#/components/parameters/QuotationIdParam'
+    get:
+      tags: [見積]
+      summary: 見積書PDF取得（未承認は「仮」印字、承認済は社印画像を埋め込み）
+      responses:
+        '200':
+          description: PDFバイナリ
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  /quotations/{quotationId}/confirm-orders:
+    parameters:
+      - $ref: '#/components/parameters/QuotationIdParam'
+    post:
+      tags: [見積, 受注]
+      summary: 受注確定（伝票単位一括、または明細単位を指定して受注を作成）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: [whole_document, selected_lines]
+                lineSelections:
+                  type: array
+                  description: mode=selected_lines のとき指定
+                  items:
+                    type: object
+                    properties:
+                      quotationLineId:
+                        type: integer
+                      quantity:
+                        type: number
+      responses:
+        '201':
+          description: 作成された受注伝票
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+
+  # ---------------- 受注 ----------------
+  /orders:
+    get:
+      tags: [受注]
+      summary: 受注伝票一覧検索
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: partnerId
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+    post:
+      tags: [受注]
+      summary: 受注伝票作成（見積連携 or 直接入力）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderInput'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+
+  /orders/{orderId}:
+    parameters:
+      - $ref: '#/components/parameters/OrderIdParam'
+    get:
+      tags: [受注]
+      summary: 受注伝票詳細取得（明細を含む）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [受注]
+      summary: 受注伝票更新
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderInput'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+
+  /orders/{orderId}/lines:
+    parameters:
+      - $ref: '#/components/parameters/OrderIdParam'
+    get:
+      tags: [受注]
+      summary: 受注明細一覧（発注残・売上残を含む）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrderLineWithRemaining'
+    post:
+      tags: [受注]
+      summary: 受注明細追加
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderLineInput'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderLine'
+
+  # ---------------- 発注 ----------------
+  /purchase-orders:
+    get:
+      tags: [発注]
+      summary: 発注伝票一覧検索
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: partnerId
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PurchaseOrder'
+    post:
+      tags: [発注]
+      summary: 発注伝票作成（受注連携 or 直接入力）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseOrderInput'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrder'
+
+  /purchase-orders/{purchaseOrderId}:
+    parameters:
+      - name: purchaseOrderId
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [発注]
+      summary: 発注伝票詳細取得（明細を含む）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrderDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /purchase-orders/{purchaseOrderId}/lines:
+    parameters:
+      - name: purchaseOrderId
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [発注]
+      summary: 発注明細一覧（仕入残＝入庫予定在庫を含む）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PurchaseOrderLineWithRemaining'
+    post:
+      tags: [発注]
+      summary: 発注明細追加
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseOrderLineInput'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrderLine'
+
+  # ---------------- 仕入 ----------------
+  /purchases:
+    get:
+      tags: [仕入]
+      summary: 仕入伝票一覧検索
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: partnerId
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Purchase'
+    post:
+      tags: [仕入]
+      summary: 仕入伝票作成（発注連携 or 直接入力）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseInput'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Purchase'
+
+  /purchases/{purchaseId}:
+    parameters:
+      - name: purchaseId
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [仕入]
+      summary: 仕入伝票詳細取得（明細を含む）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ---------------- 売上 ----------------
+  /sales:
+    get:
+      tags: [売上]
+      summary: 売上伝票一覧検索
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: partnerId
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Sales'
+    post:
+      tags: [売上]
+      summary: 売上伝票作成（受注連携 or 直接入力）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesInput'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sales'
+
+  /sales/{salesId}:
+    parameters:
+      - name: salesId
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [売上]
+      summary: 売上伝票詳細取得（明細を含む）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ---------------- 入金 ----------------
+  /receipts:
+    get:
+      tags: [入金]
+      summary: 入金伝票一覧検索
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: partnerId
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Receipt'
+    post:
+      tags: [入金]
+      summary: 入金伝票作成（売上連携 or 直接入力）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReceiptInput'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Receipt'
+
+  /receipts/{receiptId}:
+    parameters:
+      - name: receiptId
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [入金]
+      summary: 入金伝票詳細取得（明細を含む）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReceiptDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ---------------- 支払 ----------------
+  /payments:
+    get:
+      tags: [支払]
+      summary: 支払伝票一覧検索
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: partnerId
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payment'
+    post:
+      tags: [支払]
+      summary: 支払伝票作成（仕入連携 or 直接入力）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentInput'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+
+  /payments/{paymentId}:
+    parameters:
+      - name: paymentId
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [支払]
+      summary: 支払伝票詳細取得（明細を含む）
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ---------------- 在庫 ----------------
+  /inventory/stocks:
+    get:
+      tags: [在庫]
+      summary: 在庫現在数検索（商品×倉庫）
+      parameters:
+        - name: productId
+          in: query
+          schema:
+            type: integer
+        - name: warehouseId
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InventoryStock'
+
+  /inventory/allocations:
+    get:
+      tags: [在庫]
+      summary: 在庫引当検索（見積/受注/売上のステージ別）
+      parameters:
+        - name: productId
+          in: query
+          schema:
+            type: integer
+        - name: stage
+          in: query
+          schema:
+            $ref: '#/components/schemas/AllocationStage'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InventoryAllocation'
+    post:
+      tags: [在庫]
+      summary: 在庫引当登録
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InventoryAllocationInput'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryAllocation'
+
+# ============================================================
+# Components
+# ============================================================
+components:
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+    PageSizeParam:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        default: 50
+    PartnerIdParam:
+      name: partnerId
+      in: path
+      required: true
+      schema:
+        type: integer
+    QuotationIdParam:
+      name: quotationId
+      in: path
+      required: true
+      schema:
+        type: integer
+    OrderIdParam:
+      name: orderId
+      in: path
+      required: true
+      schema:
+        type: integer
+
+  responses:
+    NotFound:
+      description: 対象が存在しない
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ValidationError:
+      description: 入力値が不正
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+
+    # ---------------- 共通マスタ / 顧客管理 ----------------
+    PartnerType:
+      type: string
+      enum: [customer, supplier, both]
+
+    PriceType:
+      type: string
+      enum: [sales, purchase]
+
+    Partner:
+      type: object
+      properties:
+        id:
+          type: integer
+        partnerCode:
+          type: string
+        partnerType:
+          $ref: '#/components/schemas/PartnerType'
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PartnerDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        partnerId:
+          type: integer
+        effectiveDate:
+          type: string
+          format: date
+        name:
+          type: string
+        nameKana:
+          type: string
+        representativeName:
+          type: string
+        postalCode:
+          type: string
+        address:
+          type: string
+        phone:
+          type: string
+        fax:
+          type: string
+        email:
+          type: string
+        contactPerson:
+          type: string
+        creditLimit:
+          type: number
+        remarks:
+          type: string
+          description: 手入力の特記事項
+        createdAt:
+          type: string
+          format: date-time
+
+    PartnerDetailInput:
+      type: object
+      required: [effectiveDate, name]
+      properties:
+        effectiveDate:
+          type: string
+          format: date
+          description: 本日日付＝即時反映、将来/過去日付＝日付指定反映
+        name:
+          type: string
+        nameKana:
+          type: string
+        representativeName:
+          type: string
+        postalCode:
+          type: string
+        address:
+          type: string
+        phone:
+          type: string
+        fax:
+          type: string
+        email:
+          type: string
+        contactPerson:
+          type: string
+        creditLimit:
+          type: number
+        remarks:
+          type: string
+
+    PartnerWithCurrentDetail:
+      allOf:
+        - $ref: '#/components/schemas/Partner'
+        - type: object
+          properties:
+            currentDetail:
+              $ref: '#/components/schemas/PartnerDetail'
+
+    PartnerCreateRequest:
+      type: object
+      required: [partnerCode, partnerType, detail]
+      properties:
+        partnerCode:
+          type: string
+        partnerType:
+          $ref: '#/components/schemas/PartnerType'
+        detail:
+          $ref: '#/components/schemas/PartnerDetailInput'
+
+    PartnerPatchRequest:
+      type: object
+      properties:
+        partnerType:
+          $ref: '#/components/schemas/PartnerType'
+        isActive:
+          type: boolean
+
+    PartnerListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PartnerWithCurrentDetail'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+
+    PageMeta:
+      type: object
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalCount:
+          type: integer
+
+    TransactionHistoryResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                enum: [quotation, order, purchase_order, purchase, sales, receipt, payment]
+              documentNo:
+                type: string
+              documentDate:
+                type: string
+                format: date
+              amount:
+                type: number
+              status:
+                type: string
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+        productCode:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        unit:
+          type: string
+        defaultSupplierId:
+          type: integer
+        isActive:
+          type: boolean
+
+    ProductInput:
+      type: object
+      required: [productCode, name, unit]
+      properties:
+        productCode:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        unit:
+          type: string
+        defaultSupplierId:
+          type: integer
+        isActive:
+          type: boolean
+
+    PriceMaster:
+      type: object
+      properties:
+        id:
+          type: integer
+        priceType:
+          $ref: '#/components/schemas/PriceType'
+        partnerId:
+          type: integer
+          nullable: true
+        productId:
+          type: integer
+        unitPrice:
+          type: number
+        effectiveStartDate:
+          type: string
+          format: date
+        effectiveEndDate:
+          type: string
+          format: date
+          nullable: true
+
+    PriceMasterInput:
+      type: object
+      required: [priceType, productId, unitPrice, effectiveStartDate]
+      properties:
+        priceType:
+          $ref: '#/components/schemas/PriceType'
+        partnerId:
+          type: integer
+          nullable: true
+        productId:
+          type: integer
+        unitPrice:
+          type: number
+        effectiveStartDate:
+          type: string
+          format: date
+        effectiveEndDate:
+          type: string
+          format: date
+          nullable: true
+
+    # ---------------- 伝票共通パーツ ----------------
+    ApprovalStatus:
+      type: string
+      enum: [draft, pending, approved, rejected]
+
+    DocumentStatus:
+      type: string
+      enum: [draft, confirmed, cancelled]
+
+    AllocationStage:
+      type: string
+      enum: [quotation, order, sales]
+
+    # ---------------- 見積 ----------------
+    Quotation:
+      type: object
+      properties:
+        id:
+          type: integer
+        quotationNo:
+          type: string
+        partnerId:
+          type: integer
+        quotationDate:
+          type: string
+          format: date
+        expiryDate:
+          type: string
+          format: date
+        conditionText:
+          type: string
+        approvalStatus:
+          $ref: '#/components/schemas/ApprovalStatus'
+        approvedBy:
+          type: integer
+          nullable: true
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    QuotationInput:
+      type: object
+      required: [partnerId, quotationDate, lines]
+      properties:
+        partnerId:
+          type: integer
+        quotationDate:
+          type: string
+          format: date
+        expiryDate:
+          type: string
+          format: date
+        conditionText:
+          type: string
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuotationLineInput'
+
+    QuotationLine:
+      type: object
+      properties:
+        id:
+          type: integer
+        quotationId:
+          type: integer
+        lineNo:
+          type: integer
+        productId:
+          type: integer
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+        amount:
+          type: number
+
+    QuotationLineInput:
+      type: object
+      required: [productId, quantity, unitPrice]
+      properties:
+        productId:
+          type: integer
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+
+    QuotationLineWithRemaining:
+      allOf:
+        - $ref: '#/components/schemas/QuotationLine'
+        - type: object
+          properties:
+            orderedQty:
+              type: number
+            remainingQty:
+              type: number
+              description: 見積残数
+
+    QuotationDetail:
+      allOf:
+        - $ref: '#/components/schemas/Quotation'
+        - type: object
+          properties:
+            lines:
+              type: array
+              items:
+                $ref: '#/components/schemas/QuotationLineWithRemaining'
+
+    # ---------------- 受注 ----------------
+    Order:
+      type: object
+      properties:
+        id:
+          type: integer
+        orderNo:
+          type: string
+        partnerId:
+          type: integer
+        orderDate:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/DocumentStatus'
+
+    OrderInput:
+      type: object
+      required: [partnerId, orderDate, lines]
+      properties:
+        partnerId:
+          type: integer
+        orderDate:
+          type: string
+          format: date
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderLineInput'
+
+    OrderLine:
+      type: object
+      properties:
+        id:
+          type: integer
+        orderId:
+          type: integer
+        lineNo:
+          type: integer
+        quotationLineId:
+          type: integer
+          nullable: true
+          description: NULL＝見積なし直接受注
+        productId:
+          type: integer
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+        amount:
+          type: number
+
+    OrderLineInput:
+      type: object
+      required: [productId, quantity, unitPrice]
+      properties:
+        quotationLineId:
+          type: integer
+          nullable: true
+        productId:
+          type: integer
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+
+    OrderLineWithRemaining:
+      allOf:
+        - $ref: '#/components/schemas/OrderLine'
+        - type: object
+          properties:
+            purchaseOrderedQty:
+              type: number
+            remainingQtyForPurchase:
+              type: number
+              description: 発注残
+            soldQty:
+              type: number
+            remainingQtyForSales:
+              type: number
+              description: 売上残
+
+    OrderDetail:
+      allOf:
+        - $ref: '#/components/schemas/Order'
+        - type: object
+          properties:
+            lines:
+              type: array
+              items:
+                $ref: '#/components/schemas/OrderLineWithRemaining'
+
+    # ---------------- 発注 ----------------
+    PurchaseOrder:
+      type: object
+      properties:
+        id:
+          type: integer
+        purchaseOrderNo:
+          type: string
+        partnerId:
+          type: integer
+        orderDate:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/DocumentStatus'
+
+    PurchaseOrderInput:
+      type: object
+      required: [partnerId, orderDate, lines]
+      properties:
+        partnerId:
+          type: integer
+        orderDate:
+          type: string
+          format: date
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/PurchaseOrderLineInput'
+
+    PurchaseOrderLine:
+      type: object
+      properties:
+        id:
+          type: integer
+        purchaseOrderId:
+          type: integer
+        lineNo:
+          type: integer
+        orderLineId:
+          type: integer
+          nullable: true
+          description: NULL＝受注なし直接発注
+        productId:
+          type: integer
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+        amount:
+          type: number
+
+    PurchaseOrderLineInput:
+      type: object
+      required: [productId, quantity, unitPrice]
+      properties:
+        orderLineId:
+          type: integer
+          nullable: true
+        productId:
+          type: integer
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+
+    PurchaseOrderLineWithRemaining:
+      allOf:
+        - $ref: '#/components/schemas/PurchaseOrderLine'
+        - type: object
+          properties:
+            purchasedQty:
+              type: number
+            remainingQty:
+              type: number
+              description: 仕入残（＝入庫予定在庫）
+
+    PurchaseOrderDetail:
+      allOf:
+        - $ref: '#/components/schemas/PurchaseOrder'
+        - type: object
+          properties:
+            lines:
+              type: array
+              items:
+                $ref: '#/components/schemas/PurchaseOrderLineWithRemaining'
+
+    # ---------------- 仕入 ----------------
+    Purchase:
+      type: object
+      properties:
+        id:
+          type: integer
+        purchaseNo:
+          type: string
+        partnerId:
+          type: integer
+        purchaseDate:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/DocumentStatus'
+
+    PurchaseInput:
+      type: object
+      required: [partnerId, purchaseDate, lines]
+      properties:
+        partnerId:
+          type: integer
+        purchaseDate:
+          type: string
+          format: date
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/PurchaseLineInput'
+
+    PurchaseLine:
+      type: object
+      properties:
+        id:
+          type: integer
+        purchaseId:
+          type: integer
+        lineNo:
+          type: integer
+        purchaseOrderLineId:
+          type: integer
+          nullable: true
+          description: NULL＝発注なし直接仕入
+        productId:
+          type: integer
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+        amount:
+          type: number
+
+    PurchaseLineInput:
+      type: object
+      required: [productId, quantity, unitPrice]
+      properties:
+        purchaseOrderLineId:
+          type: integer
+          nullable: true
+        productId:
+          type: integer
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+
+    PurchaseDetail:
+      allOf:
+        - $ref: '#/components/schemas/Purchase'
+        - type: object
+          properties:
+            lines:
+              type: array
+              items:
+                $ref: '#/components/schemas/PurchaseLine'
+
+    # ---------------- 売上 ----------------
+    Sales:
+      type: object
+      properties:
+        id:
+          type: integer
+        salesNo:
+          type: string
+        partnerId:
+          type: integer
+        salesDate:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/DocumentStatus'
+
+    SalesInput:
+      type: object
+      required: [partnerId, salesDate, lines]
+      properties:
+        partnerId:
+          type: integer
+        salesDate:
+          type: string
+          format: date
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/SalesLineInput'
+
+    SalesLine:
+      type: object
+      properties:
+        id:
+          type: integer
+        salesId:
+          type: integer
+        lineNo:
+          type: integer
+        orderLineId:
+          type: integer
+          nullable: true
+          description: NULL＝受注なし直接売上
+        productId:
+          type: integer
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+        amount:
+          type: number
+
+    SalesLineInput:
+      type: object
+      required: [productId, quantity, unitPrice]
+      properties:
+        orderLineId:
+          type: integer
+          nullable: true
+        productId:
+          type: integer
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+
+    SalesDetail:
+      allOf:
+        - $ref: '#/components/schemas/Sales'
+        - type: object
+          properties:
+            lines:
+              type: array
+              items:
+                $ref: '#/components/schemas/SalesLine'
+
+    # ---------------- 入金 ----------------
+    Receipt:
+      type: object
+      properties:
+        id:
+          type: integer
+        receiptNo:
+          type: string
+        partnerId:
+          type: integer
+        receiptDate:
+          type: string
+          format: date
+        paymentMethod:
+          type: string
+        status:
+          $ref: '#/components/schemas/DocumentStatus'
+
+    ReceiptInput:
+      type: object
+      required: [partnerId, receiptDate, lines]
+      properties:
+        partnerId:
+          type: integer
+        receiptDate:
+          type: string
+          format: date
+        paymentMethod:
+          type: string
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReceiptLineInput'
+
+    ReceiptLine:
+      type: object
+      properties:
+        id:
+          type: integer
+        receiptId:
+          type: integer
+        lineNo:
+          type: integer
+        salesLineId:
+          type: integer
+          nullable: true
+          description: NULL＝売上なし直接入金
+        amount:
+          type: number
+
+    ReceiptLineInput:
+      type: object
+      required: [amount]
+      properties:
+        salesLineId:
+          type: integer
+          nullable: true
+        amount:
+          type: number
+
+    ReceiptDetail:
+      allOf:
+        - $ref: '#/components/schemas/Receipt'
+        - type: object
+          properties:
+            lines:
+              type: array
+              items:
+                $ref: '#/components/schemas/ReceiptLine'
+
+    # ---------------- 支払 ----------------
+    Payment:
+      type: object
+      properties:
+        id:
+          type: integer
+        paymentNo:
+          type: string
+        partnerId:
+          type: integer
+        paymentDate:
+          type: string
+          format: date
+        paymentMethod:
+          type: string
+        status:
+          $ref: '#/components/schemas/DocumentStatus'
+
+    PaymentInput:
+      type: object
+      required: [partnerId, paymentDate, lines]
+      properties:
+        partnerId:
+          type: integer
+        paymentDate:
+          type: string
+          format: date
+        paymentMethod:
+          type: string
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaymentLineInput'
+
+    PaymentLine:
+      type: object
+      properties:
+        id:
+          type: integer
+        paymentId:
+          type: integer
+        lineNo:
+          type: integer
+        purchaseLineId:
+          type: integer
+          nullable: true
+          description: NULL＝仕入なし直接支払
+        amount:
+          type: number
+
+    PaymentLineInput:
+      type: object
+      required: [amount]
+      properties:
+        purchaseLineId:
+          type: integer
+          nullable: true
+        amount:
+          type: number
+
+    PaymentDetail:
+      allOf:
+        - $ref: '#/components/schemas/Payment'
+        - type: object
+          properties:
+            lines:
+              type: array
+              items:
+                $ref: '#/components/schemas/PaymentLine'
+
+    # ---------------- 在庫 ----------------
+    InventoryStock:
+      type: object
+      properties:
+        productId:
+          type: integer
+        warehouseId:
+          type: integer
+        quantityOnHand:
+          type: number
+
+    InventoryAllocation:
+      type: object
+      properties:
+        id:
+          type: integer
+        allocationStage:
+          $ref: '#/components/schemas/AllocationStage'
+        quotationLineId:
+          type: integer
+          nullable: true
+        orderLineId:
+          type: integer
+          nullable: true
+        salesLineId:
+          type: integer
+          nullable: true
+        productId:
+          type: integer
+        warehouseId:
+          type: integer
+        quantity:
+          type: number
+
+    InventoryAllocationInput:
+      type: object
+      required: [allocationStage, productId, quantity]
+      properties:
+        allocationStage:
+          $ref: '#/components/schemas/AllocationStage'
+        quotationLineId:
+          type: integer
+          nullable: true
+        orderLineId:
+          type: integer
+          nullable: true
+        salesLineId:
+          type: integer
+          nullable: true
+        productId:
+          type: integer
+        warehouseId:
+          type: integer
+        quantity:
+          type: number
