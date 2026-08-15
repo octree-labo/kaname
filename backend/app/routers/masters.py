@@ -33,6 +33,7 @@ def create_partner(payload: schemas.PartnerCreateRequest, user: SessionUser = De
         db,
         partner_code=payload.partner_code,
         partner_type=payload.partner_type.value,
+        rounding_type=payload.rounding_type.value,
         detail=payload.detail.model_dump(),
         created_by=user.id,
     )
@@ -52,7 +53,10 @@ def patch_partner(partner_id: int, payload: schemas.PartnerPatchRequest, db: Ses
     if partner is None:
         raise HTTPException(status_code=404, detail="partner not found")
     partner_type = payload.partner_type.value if payload.partner_type else None
-    return crud.update_partner_flags(db, partner, partner_type=partner_type, is_active=payload.is_active)
+    rounding_type = payload.rounding_type.value if payload.rounding_type else None
+    return crud.update_partner_flags(
+        db, partner, partner_type=partner_type, rounding_type=rounding_type, is_active=payload.is_active
+    )
 
 
 @router.get("/partners/{partner_id}/details", response_model=list[schemas.PartnerDetailOut], tags=["顧客管理"])

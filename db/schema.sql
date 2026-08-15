@@ -14,6 +14,7 @@ CREATE TYPE price_type        AS ENUM ('sales', 'purchase');
 CREATE TYPE allocation_stage  AS ENUM ('quotation', 'order', 'sales');
 CREATE TYPE user_role         AS ENUM ('owner', 'member');
 CREATE TYPE user_status       AS ENUM ('pending', 'approved', 'rejected');
+CREATE TYPE rounding_type     AS ENUM ('floor', 'ceil', 'round');
 
 -- ------------------------------------------------------------
 -- ユーザー（承認者・作成者の参照用、およびログインアカウント）
@@ -45,6 +46,9 @@ CREATE TABLE partners (
   id            BIGSERIAL PRIMARY KEY,
   partner_code  VARCHAR(20) UNIQUE NOT NULL,
   partner_type  partner_type NOT NULL,
+  -- 金額計算（数量×単価）の端数処理方法。伝票明細の作成時にこの値を
+  -- そのままコピーして保持する（後でここを変更しても過去の伝票には影響しない）。
+  rounding_type rounding_type NOT NULL DEFAULT 'round',
   is_active     BOOLEAN NOT NULL DEFAULT TRUE,
   created_by    BIGINT REFERENCES users(id),
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -157,14 +161,20 @@ CREATE TABLE quotations (
 -- 見積書PDFの「仮」印字/社印画像の出し分けは approval_status を参照して
 -- アプリケーション層（PDF生成処理）で切り替える。
 
+-- 明細の quantity/unit_price は両方揃っていれば amount を自動計算する
+-- （取引先の rounding_type で端数処理し、その丸め方式を rounding_type 列に
+-- スナップショットとして保持する。後で取引先マスタの丸め方式を変えても、
+-- この明細の再計算には作成時点の rounding_type を使う）。
+-- どちらか一方でも未入力の場合のみ amount を直接入力できる。
 CREATE TABLE quotation_lines (
-  id            BIGSERIAL PRIMARY KEY,
-  quotation_id  BIGINT NOT NULL REFERENCES quotations(id),
-  line_no       INT NOT NULL,
-  product_id    BIGINT NOT NULL REFERENCES products(id),
-  quantity      NUMERIC(14,3) NOT NULL,
-  unit_price    NUMERIC(14,2) NOT NULL,
-  amount        NUMERIC(16,2) NOT NULL,
+  id             BIGSERIAL PRIMARY KEY,
+  quotation_id   BIGINT NOT NULL REFERENCES quotations(id),
+  line_no        INT NOT NULL,
+  product_id     BIGINT NOT NULL REFERENCES products(id),
+  quantity       NUMERIC(14,3),
+  unit_price     NUMERIC(14,2),
+  amount         NUMERIC(16,0) NOT NULL,
+  rounding_type  rounding_type NOT NULL,
   UNIQUE(quotation_id, line_no)
 );
 
@@ -186,9 +196,10 @@ CREATE TABLE order_lines (
   line_no             INT NOT NULL,
   quotation_line_id   BIGINT REFERENCES quotation_lines(id),  -- NULL可: 見積なし直接受注
   product_id          BIGINT NOT NULL REFERENCES products(id),
-  quantity            NUMERIC(14,3) NOT NULL,
-  unit_price          NUMERIC(14,2) NOT NULL,
-  amount              NUMERIC(16,2) NOT NULL,
+  quantity            NUMERIC(14,3),
+  unit_price          NUMERIC(14,2),
+  amount              NUMERIC(16,0) NOT NULL,
+  rounding_type       rounding_type NOT NULL,
   UNIQUE(order_id, line_no)
 );
 CREATE INDEX idx_order_lines_quotation_line ON order_lines(quotation_line_id);
@@ -219,9 +230,10 @@ CREATE TABLE purchase_order_lines (
   line_no             INT NOT NULL,
   order_line_id       BIGINT REFERENCES order_lines(id),  -- NULL可: 受注なし直接発注
   product_id          BIGINT NOT NULL REFERENCES products(id),
-  quantity            NUMERIC(14,3) NOT NULL,
-  unit_price          NUMERIC(14,2) NOT NULL,
-  amount              NUMERIC(16,2) NOT NULL,
+  quantity            NUMERIC(14,3),
+  unit_price          NUMERIC(14,2),
+  amount              NUMERIC(16,0) NOT NULL,
+  rounding_type       rounding_type NOT NULL,
   UNIQUE(purchase_order_id, line_no)
 );
 CREATE INDEX idx_po_lines_order_line ON purchase_order_lines(order_line_id);
@@ -252,9 +264,10 @@ CREATE TABLE purchase_lines (
   line_no                  INT NOT NULL,
   purchase_order_line_id   BIGINT REFERENCES purchase_order_lines(id),  -- NULL可: 発注なし直接仕入
   product_id               BIGINT NOT NULL REFERENCES products(id),
-  quantity                 NUMERIC(14,3) NOT NULL,
-  unit_price                NUMERIC(14,2) NOT NULL,
-  amount                    NUMERIC(16,2) NOT NULL,
+  quantity                 NUMERIC(14,3),
+  unit_price               NUMERIC(14,2),
+  amount                   NUMERIC(16,0) NOT NULL,
+  rounding_type            rounding_type NOT NULL,
   UNIQUE(purchase_id, line_no)
 );
 CREATE INDEX idx_purchase_lines_po_line ON purchase_lines(purchase_order_line_id);
@@ -285,9 +298,10 @@ CREATE TABLE sales_lines (
   line_no         INT NOT NULL,
   order_line_id   BIGINT REFERENCES order_lines(id),  -- NULL可: 受注なし直接売上
   product_id      BIGINT NOT NULL REFERENCES products(id),
-  quantity        NUMERIC(14,3) NOT NULL,
-  unit_price      NUMERIC(14,2) NOT NULL,
-  amount          NUMERIC(16,2) NOT NULL,
+  quantity        NUMERIC(14,3),
+  unit_price      NUMERIC(14,2),
+  amount          NUMERIC(16,0) NOT NULL,
+  rounding_type   rounding_type NOT NULL,
   UNIQUE(sales_id, line_no)
 );
 CREATE INDEX idx_sales_lines_order_line ON sales_lines(order_line_id);

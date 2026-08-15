@@ -21,7 +21,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from faker import Faker  # noqa: E402
 from sqlalchemy import select  # noqa: E402
 
-from app import models  # noqa: E402
+from app import crud, models  # noqa: E402
 from app.database import SessionLocal  # noqa: E402
 
 fake = Faker("ja_JP")
@@ -37,6 +37,10 @@ def q3(value) -> Decimal:
 
 def q2(value) -> Decimal:
     return Decimal(str(value)).quantize(Decimal("0.01"))
+
+
+def q0(value) -> Decimal:
+    return Decimal(str(value)).quantize(Decimal("1"))
 
 
 def random_date(start: date, end: date) -> date:
@@ -109,9 +113,11 @@ def main() -> None:
         used_names.add(name)
 
         partner_type = random.choices(["customer", "supplier", "both"], weights=[55, 30, 15])[0]
+        rounding_type = random.choices(["round", "floor", "ceil"], weights=[70, 15, 15])[0]
         partner = models.Partner(
             partner_code=f"P{i:04d}",
             partner_type=partner_type,
+            rounding_type=rounding_type,
             created_by=admin.id,
         )
         db.add(partner)
@@ -139,6 +145,7 @@ def main() -> None:
 
     customers = [p for p in partners if p.partner_type in ("customer", "both")]
     suppliers = [p for p in partners if p.partner_type in ("supplier", "both")]
+    partner_by_id = {p.id: p for p in partners}
 
     # ------------------------------------------------------------
     # 商品 100件
@@ -246,7 +253,8 @@ def main() -> None:
                 product_id=product.id,
                 quantity=quantity,
                 unit_price=unit_price,
-                amount=q2(quantity * unit_price),
+                amount=crud.compute_amount(quantity, unit_price, partner.rounding_type),
+                rounding_type=partner.rounding_type,
             )
             db.add(line)
             db.flush()
@@ -308,6 +316,7 @@ def main() -> None:
         db.add(order)
         db.flush()
 
+        order_partner = partner_by_id[partner_id]
         line = models.OrderLine(
             order_id=order.id,
             line_no=1,
@@ -315,7 +324,8 @@ def main() -> None:
             product_id=product_id,
             quantity=qty,
             unit_price=unit_price,
-            amount=q2(qty * unit_price),
+            amount=crud.compute_amount(qty, unit_price, order_partner.rounding_type),
+            rounding_type=order_partner.rounding_type,
         )
         db.add(line)
         db.flush()
@@ -382,7 +392,8 @@ def main() -> None:
             product_id=product_id,
             quantity=qty,
             unit_price=unit_price,
-            amount=q2(qty * unit_price),
+            amount=crud.compute_amount(qty, unit_price, supplier.rounding_type),
+            rounding_type=supplier.rounding_type,
         )
         db.add(line)
         db.flush()
@@ -438,6 +449,7 @@ def main() -> None:
         db.add(purchase)
         db.flush()
 
+        purchase_partner = partner_by_id[partner_id]
         line = models.PurchaseLine(
             purchase_id=purchase.id,
             line_no=1,
@@ -445,7 +457,8 @@ def main() -> None:
             product_id=product_id,
             quantity=qty,
             unit_price=unit_price,
-            amount=q2(qty * unit_price),
+            amount=crud.compute_amount(qty, unit_price, purchase_partner.rounding_type),
+            rounding_type=purchase_partner.rounding_type,
         )
         db.add(line)
         db.flush()
@@ -501,6 +514,7 @@ def main() -> None:
         db.add(sales)
         db.flush()
 
+        sales_partner = partner_by_id[partner_id]
         line = models.SalesLine(
             sales_id=sales.id,
             line_no=1,
@@ -508,7 +522,8 @@ def main() -> None:
             product_id=product_id,
             quantity=qty,
             unit_price=unit_price,
-            amount=q2(qty * unit_price),
+            amount=crud.compute_amount(qty, unit_price, sales_partner.rounding_type),
+            rounding_type=sales_partner.rounding_type,
         )
         db.add(line)
         db.flush()

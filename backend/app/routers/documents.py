@@ -25,13 +25,8 @@ from ..security import SessionUser, get_current_user
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
-def _lines_with_amount(lines: list[Any]) -> list[dict]:
-    out = []
-    for line in lines:
-        data = line.model_dump()
-        data["amount"] = data["quantity"] * data["unit_price"]
-        out.append(data)
-    return out
+def _lines(lines: list[Any]) -> list[dict]:
+    return [line.model_dump() for line in lines]
 
 
 def _patch_lines(lines: list[Any] | None) -> list[dict] | None:
@@ -63,7 +58,10 @@ def list_quotations(
 @router.post("/quotations", response_model=schemas.QuotationOut, status_code=201, tags=["見積"])
 def create_quotation(payload: schemas.QuotationIn, user: SessionUser = Depends(get_current_user), db: Session = Depends(get_db)):
     header = payload.model_dump(exclude={"lines"})
-    return crud.quotation_crud.create(db, header, _lines_with_amount(payload.lines), created_by=user.id)
+    try:
+        return crud.quotation_crud.create(db, header, _lines(payload.lines), created_by=user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/quotations/{quotation_id}", response_model=schemas.QuotationDetailOut, tags=["見積"])
@@ -142,18 +140,21 @@ def confirm_orders(
         if q_line is None:
             raise HTTPException(status_code=400, detail=f"invalid quotation line: {line_id}")
         quantity = qty if qty is not None else q_line.quantity
-        lines_data.append(
-            {
-                "quotation_line_id": q_line.id,
-                "product_id": q_line.product_id,
-                "quantity": quantity,
-                "unit_price": q_line.unit_price,
-                "amount": quantity * q_line.unit_price,
-            }
-        )
+        line_data: dict[str, Any] = {"quotation_line_id": q_line.id, "product_id": q_line.product_id}
+        if quantity is not None and q_line.unit_price is not None:
+            # 数量・単価が両方揃っている場合は受注側で（受注の取引先の丸め区分で）再計算させる
+            line_data["quantity"] = quantity
+            line_data["unit_price"] = q_line.unit_price
+        else:
+            # 見積側が金額のみ手入力だった場合は、その金額をそのまま引き継ぐ
+            line_data["amount"] = q_line.amount
+        lines_data.append(line_data)
 
     header = {"partner_id": quotation.partner_id, "order_date": date.today()}
-    return crud.order_crud.create(db, header, lines_data, created_by=user.id)
+    try:
+        return crud.order_crud.create(db, header, lines_data, created_by=user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ============================================================
@@ -179,7 +180,10 @@ def list_orders(
 @router.post("/orders", response_model=schemas.OrderOut, status_code=201, tags=["受注"])
 def create_order(payload: schemas.OrderIn, user: SessionUser = Depends(get_current_user), db: Session = Depends(get_db)):
     header = payload.model_dump(exclude={"lines"})
-    return crud.order_crud.create(db, header, _lines_with_amount(payload.lines), created_by=user.id)
+    try:
+        return crud.order_crud.create(db, header, _lines(payload.lines), created_by=user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/orders/{order_id}", response_model=schemas.OrderDetailOut, tags=["受注"])
@@ -232,7 +236,10 @@ def list_purchase_orders(
 @router.post("/purchase-orders", response_model=schemas.PurchaseOrderOut, status_code=201, tags=["発注"])
 def create_purchase_order(payload: schemas.PurchaseOrderIn, user: SessionUser = Depends(get_current_user), db: Session = Depends(get_db)):
     header = payload.model_dump(exclude={"lines"})
-    return crud.purchase_order_crud.create(db, header, _lines_with_amount(payload.lines), created_by=user.id)
+    try:
+        return crud.purchase_order_crud.create(db, header, _lines(payload.lines), created_by=user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/purchase-orders/{purchase_order_id}", response_model=schemas.PurchaseOrderDetailOut, tags=["発注"])
@@ -289,7 +296,10 @@ def list_purchases(
 @router.post("/purchases", response_model=schemas.PurchaseOut, status_code=201, tags=["仕入"])
 def create_purchase(payload: schemas.PurchaseIn, user: SessionUser = Depends(get_current_user), db: Session = Depends(get_db)):
     header = payload.model_dump(exclude={"lines"})
-    return crud.purchase_crud.create(db, header, _lines_with_amount(payload.lines), created_by=user.id)
+    try:
+        return crud.purchase_crud.create(db, header, _lines(payload.lines), created_by=user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/purchases/{purchase_id}", response_model=schemas.PurchaseDetailOut, tags=["仕入"])
@@ -335,7 +345,10 @@ def list_sales(
 @router.post("/sales", response_model=schemas.SalesOut, status_code=201, tags=["売上"])
 def create_sales(payload: schemas.SalesIn, user: SessionUser = Depends(get_current_user), db: Session = Depends(get_db)):
     header = payload.model_dump(exclude={"lines"})
-    return crud.sales_crud.create(db, header, _lines_with_amount(payload.lines), created_by=user.id)
+    try:
+        return crud.sales_crud.create(db, header, _lines(payload.lines), created_by=user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/sales/{sales_id}", response_model=schemas.SalesDetailOut, tags=["売上"])

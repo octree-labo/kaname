@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
-import type { PartnerOut, PartnerType } from "@/lib/types";
+import type { PartnerOut, PartnerType, RoundingType } from "@/lib/types";
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -13,6 +13,7 @@ export default function NewPartnerPage() {
   const router = useRouter();
   const [partnerCode, setPartnerCode] = useState("");
   const [partnerType, setPartnerType] = useState<PartnerType>("customer");
+  const [roundingType, setRoundingType] = useState<RoundingType>("round");
   const [name, setName] = useState("");
   const [effectiveDate, setEffectiveDate] = useState(today());
   const [address, setAddress] = useState("");
@@ -30,6 +31,7 @@ export default function NewPartnerPage() {
       const created = await api.post<PartnerOut>("/api/partners", {
         partnerCode: partnerCode || undefined,
         partnerType,
+        roundingType,
         detail: {
           effectiveDate,
           name,
@@ -75,6 +77,23 @@ export default function NewPartnerPage() {
             <option value="supplier">仕入先</option>
             <option value="both">得意先/仕入先</option>
           </select>
+        </div>
+
+        <div>
+          <label htmlFor="roundingType" className="block text-sm font-medium text-slate-700">金額端数処理</label>
+          <select
+            id="roundingType"
+            value={roundingType}
+            onChange={(e) => setRoundingType(e.target.value as RoundingType)}
+            className="mt-1 w-full"
+          >
+            <option value="round">四捨五入</option>
+            <option value="floor">切り捨て</option>
+            <option value="ceil">切り上げ</option>
+          </select>
+          <p className="mt-1 text-xs text-slate-600">
+            数量×単価の金額計算（見積・受注・発注・仕入・売上）に使う端数処理方式です。
+          </p>
         </div>
 
         <div>

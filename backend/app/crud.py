@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from decimal import ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP, Decimal
 from typing import Any, Generic, TypeVar
 
 from sqlalchemy import select
@@ -17,6 +18,44 @@ from . import models
 
 HeaderT = TypeVar("HeaderT")
 LineT = TypeVar("LineT")
+
+_ROUNDING_MODES = {
+    models.RoundingType.floor: ROUND_FLOOR,
+    models.RoundingType.ceil: ROUND_CEILING,
+    models.RoundingType.round: ROUND_HALF_UP,
+}
+
+
+def compute_amount(quantity: Decimal, unit_price: Decimal, rounding_type: models.RoundingType) -> Decimal:
+    """数量×単価を、取引先の丸め区分に従って整数金額に丸める。"""
+    raw = Decimal(quantity) * Decimal(unit_price)
+    return raw.quantize(Decimal("1"), rounding=_ROUNDING_MODES[rounding_type])
+
+
+def _to_integer_amount(value: Decimal) -> Decimal:
+    return Decimal(value).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+
+
+def resolve_line_amount(line: dict[str, Any], partner: models.Partner) -> dict[str, Any]:
+    """明細1件分の amount/rounding_type を確定させる。
+
+    数量・単価が両方揃っていれば取引先の丸め区分で自動計算し、その丸め区分を
+    明細にスナップショットとして保存する（後で取引先マスタの丸め区分を
+    変更しても、この明細の再計算には常にこの値が使われる）。
+    どちらか一方でも未入力の場合は、明細に指定された amount をそのまま使う
+    （整数に丸めて保存する）。
+    """
+    line = dict(line)
+    quantity = line.get("quantity")
+    unit_price = line.get("unit_price")
+    if quantity is not None and unit_price is not None:
+        line["amount"] = compute_amount(quantity, unit_price, partner.rounding_type)
+    else:
+        if line.get("amount") is None:
+            raise ValueError("amount is required when quantity or unit_price is not provided")
+        line["amount"] = _to_integer_amount(line["amount"])
+    line["rounding_type"] = partner.rounding_type
+    return line
 
 
 # ------------------------------------------------------------
@@ -115,10 +154,18 @@ def get_partner(db: Session, partner_id: int) -> models.Partner | None:
 
 
 def create_partner(
-    db: Session, *, partner_code: str | None, partner_type: str, detail: dict[str, Any], created_by: int | None
+    db: Session,
+    *,
+    partner_code: str | None,
+    partner_type: str,
+    rounding_type: str,
+    detail: dict[str, Any],
+    created_by: int | None,
 ) -> models.Partner:
     code = partner_code or next_sequential_code(db, models.Partner, models.Partner.partner_code)
-    partner = models.Partner(partner_code=code, partner_type=partner_type, created_by=created_by)
+    partner = models.Partner(
+        partner_code=code, partner_type=partner_type, rounding_type=rounding_type, created_by=created_by
+    )
     db.add(partner)
     db.flush()
     db.add(models.PartnerDetail(partner_id=partner.id, created_by=created_by, **detail))
@@ -146,9 +193,18 @@ def list_partner_details(db: Session, partner_id: int) -> list[models.PartnerDet
     return list(db.execute(stmt).scalars().all())
 
 
-def update_partner_flags(db: Session, partner: models.Partner, *, partner_type: str | None, is_active: bool | None) -> models.Partner:
+def update_partner_flags(
+    db: Session,
+    partner: models.Partner,
+    *,
+    partner_type: str | None,
+    rounding_type: str | None,
+    is_active: bool | None,
+) -> models.Partner:
     if partner_type is not None:
         partner.partner_type = partner_type
+    if rounding_type is not None:
+        partner.rounding_type = rounding_type
     if is_active is not None:
         partner.is_active = is_active
     db.commit()
@@ -350,7 +406,14 @@ class DocumentCRUD(Generic[HeaderT, LineT]):
         header = self.header_model(**header_kwargs, **{self.no_field: doc_no})  # type: ignore[call-arg]
         db.add(header)
         db.flush()  # header.id を確定させる
+
+        partner = None
+        if self.lines_have_qty:
+            partner = db.get(models.Partner, header_data["partner_id"])
+
         for i, line in enumerate(lines_data, start=1):
+            if self.lines_have_qty:
+                line = resolve_line_amount(line, partner)  # type: ignore[arg-type]
             db.add(self.line_model(**{self.line_fk_name: header.id, "line_no": i}, **line))  # type: ignore[call-arg]
         db.commit()
         return self.get(db, header.id)  # type: ignore[attr-defined,arg-type]
@@ -374,8 +437,14 @@ class DocumentCRUD(Generic[HeaderT, LineT]):
                     raise ValueError(f"line {line_id} does not belong to this document")
                 for key, value in line_patch.items():
                     setattr(line, key, value)
-                if self.lines_have_qty and ("quantity" in line_patch or "unit_price" in line_patch):
-                    line.amount = line.quantity * line.unit_price
+                if self.lines_have_qty:
+                    if line.quantity is not None and line.unit_price is not None:
+                        # 数量・単価が両方揃った時点で、明細作成時にスナップショットした
+                        # rounding_type（＝その時の取引先マスタの設定）で再計算する。
+                        # 取引先マスタの現在の丸め区分は参照しない。
+                        line.amount = compute_amount(line.quantity, line.unit_price, line.rounding_type)
+                    elif "amount" in line_patch and line_patch["amount"] is not None:
+                        line.amount = _to_integer_amount(line_patch["amount"])
 
         db.commit()
         return self.get(db, document_id)

@@ -13,6 +13,8 @@ export type PriceType = "sales" | "purchase";
 export type AllocationStage = "quotation" | "order" | "sales";
 export type UserRole = "owner" | "member";
 export type UserStatus = "pending" | "approved" | "rejected";
+/** 金額端数処理区分: floor=切り捨て / ceil=切り上げ / round=四捨五入 */
+export type RoundingType = "floor" | "ceil" | "round";
 
 export interface PartnerDetailOut {
   id: number;
@@ -51,6 +53,7 @@ export interface PartnerOut {
   id: number;
   partnerCode: string;
   partnerType: PartnerType;
+  roundingType: RoundingType;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -112,16 +115,17 @@ export interface LineBase {
   productId?: number;
   productCode?: string | null;
   productName?: string | null;
-  quantity?: string;
-  unitPrice?: string;
+  quantity?: string | null;
+  unitPrice?: string | null;
   amount: string;
 }
 
 export interface QuotationLineOut extends LineBase {
   quotationId: number;
   productId: number;
-  quantity: string;
-  unitPrice: string;
+  quantity: string | null;
+  unitPrice: string | null;
+  roundingType: RoundingType;
 }
 
 export interface QuotationLineWithRemainingOut extends QuotationLineOut {
@@ -151,8 +155,9 @@ export interface OrderLineOut extends LineBase {
   orderId: number;
   quotationLineId: number | null;
   productId: number;
-  quantity: string;
-  unitPrice: string;
+  quantity: string | null;
+  unitPrice: string | null;
+  roundingType: RoundingType;
 }
 
 export interface OrderLineWithRemainingOut extends OrderLineOut {
@@ -180,8 +185,9 @@ export interface PurchaseOrderLineOut extends LineBase {
   purchaseOrderId: number;
   orderLineId: number | null;
   productId: number;
-  quantity: string;
-  unitPrice: string;
+  quantity: string | null;
+  unitPrice: string | null;
+  roundingType: RoundingType;
 }
 
 export interface PurchaseOrderLineWithRemainingOut extends PurchaseOrderLineOut {
@@ -207,8 +213,9 @@ export interface PurchaseLineOut extends LineBase {
   purchaseId: number;
   purchaseOrderLineId: number | null;
   productId: number;
-  quantity: string;
-  unitPrice: string;
+  quantity: string | null;
+  unitPrice: string | null;
+  roundingType: RoundingType;
 }
 
 export interface PurchaseOut {
@@ -229,8 +236,9 @@ export interface SalesLineOut extends LineBase {
   salesId: number;
   orderLineId: number | null;
   productId: number;
-  quantity: string;
-  unitPrice: string;
+  quantity: string | null;
+  unitPrice: string | null;
+  roundingType: RoundingType;
 }
 
 export interface SalesOut {

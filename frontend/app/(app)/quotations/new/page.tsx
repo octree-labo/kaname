@@ -5,16 +5,11 @@ import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import type { QuotationOut } from "@/lib/types";
 import { PartnerPicker } from "@/components/PartnerPicker";
-import { ProductPicker } from "@/components/ProductPicker";
+import { ProductLineFields } from "@/components/ProductLineFields";
+import { buildProductLinePayload, type ProductLineValue } from "@/lib/lineHelpers";
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
-}
-
-interface LineRow {
-  productId: string;
-  quantity: string;
-  unitPrice: string;
 }
 
 export default function NewQuotationPage() {
@@ -23,12 +18,14 @@ export default function NewQuotationPage() {
   const [quotationDate, setQuotationDate] = useState(today());
   const [expiryDate, setExpiryDate] = useState("");
   const [conditionText, setConditionText] = useState("");
-  const [lines, setLines] = useState<LineRow[]>([{ productId: "", quantity: "", unitPrice: "" }]);
+  const [lines, setLines] = useState<ProductLineValue[]>([
+    { productId: "", quantity: "", unitPrice: "", amount: "" },
+  ]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   function addLine() {
-    setLines((prev) => [...prev, { productId: "", quantity: "", unitPrice: "" }]);
+    setLines((prev) => [...prev, { productId: "", quantity: "", unitPrice: "", amount: "" }]);
   }
 
   function removeLine(index: number) {
@@ -45,11 +42,7 @@ export default function NewQuotationPage() {
         quotationDate,
         expiryDate: expiryDate || undefined,
         conditionText: conditionText || undefined,
-        lines: lines.map((l) => ({
-          productId: Number(l.productId),
-          quantity: Number(l.quantity),
-          unitPrice: Number(l.unitPrice),
-        })),
+        lines: lines.map((l) => buildProductLinePayload(l)),
       });
       router.push(`/quotations/${created.id}`);
     } catch (err) {
@@ -110,45 +103,16 @@ export default function NewQuotationPage() {
               + 行を追加
             </button>
           </div>
+          <p className="mt-1 text-xs text-slate-600">
+            数量・単価を両方入力すると金額は自動計算されます（取引先の丸め区分を適用）。どちらか一方でも空欄の場合は金額を直接入力してください。
+          </p>
           <div className="mt-2 space-y-2">
             {lines.map((line, i) => (
               <div key={i} className="flex items-end gap-2 rounded-md border border-slate-200 p-3">
-                <div className="flex-1">
-                  <label className="block text-xs text-slate-600">商品</label>
-                  <div className="mt-1">
-                    <ProductPicker
-                      value={line.productId}
-                      onChange={(v) => setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, productId: v } : l)))}
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="w-24">
-                  <label className="block text-xs text-slate-600">数量</label>
-                  <input
-                    required
-                    type="number"
-                    step="0.001"
-                    value={line.quantity}
-                    onChange={(e) =>
-                      setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, quantity: e.target.value } : l)))
-                    }
-                    className="mt-1 w-full"
-                  />
-                </div>
-                <div className="w-28">
-                  <label className="block text-xs text-slate-600">単価</label>
-                  <input
-                    required
-                    type="number"
-                    step="0.01"
-                    value={line.unitPrice}
-                    onChange={(e) =>
-                      setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, unitPrice: e.target.value } : l)))
-                    }
-                    className="mt-1 w-full"
-                  />
-                </div>
+                <ProductLineFields
+                  value={line}
+                  onChange={(next) => setLines((prev) => prev.map((l, idx) => (idx === i ? next : l)))}
+                />
                 <button
                   type="button"
                   onClick={() => removeLine(i)}

@@ -86,8 +86,8 @@ def render_quotation_pdf(quotation: models.Quotation, partner: models.Partner | 
         c.drawString(20 * mm, y, str(line.line_no))
         c.drawString(32 * mm, y, product_code)
         c.drawString(62 * mm, y, product_name[:22])
-        c.drawRightString(140 * mm, y, f"{line.quantity:,}")
-        c.drawRightString(165 * mm, y, f"{line.unit_price:,}")
+        c.drawRightString(140 * mm, y, f"{line.quantity:,}" if line.quantity is not None else "-")
+        c.drawRightString(165 * mm, y, f"{line.unit_price:,}" if line.unit_price is not None else "-")
         c.drawRightString(190 * mm, y, f"{line.amount:,}")
         total += line.amount
         y -= 6.5 * mm

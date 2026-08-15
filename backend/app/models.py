@@ -75,6 +75,12 @@ class UserStatus(str, enum.Enum):
     rejected = "rejected"
 
 
+class RoundingType(str, enum.Enum):
+    floor = "floor"  # 切り捨て
+    ceil = "ceil"  # 切り上げ
+    round = "round"  # 四捨五入
+
+
 def _pg_enum(python_enum: type[enum.Enum], name: str) -> SAEnum:
     return SAEnum(
         python_enum,
@@ -113,6 +119,9 @@ class Partner(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     partner_code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
     partner_type: Mapped[PartnerType] = mapped_column(_pg_enum(PartnerType, "partner_type"), nullable=False)
+    rounding_type: Mapped[RoundingType] = mapped_column(
+        _pg_enum(RoundingType, "rounding_type"), nullable=False, default=RoundingType.round
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -261,9 +270,10 @@ class QuotationLine(Base):
     quotation_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("quotations.id"), nullable=False)
     line_no: Mapped[int] = mapped_column(nullable=False)
     product_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("products.id"), nullable=False)
-    quantity: Mapped[Decimal] = mapped_column(Numeric(14, 3), nullable=False)
-    unit_price: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
-    amount: Mapped[Decimal] = mapped_column(Numeric(16, 2), nullable=False)
+    quantity: Mapped[Decimal | None] = mapped_column(Numeric(14, 3))
+    unit_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    amount: Mapped[Decimal] = mapped_column(Numeric(16, 0), nullable=False)
+    rounding_type: Mapped[RoundingType] = mapped_column(_pg_enum(RoundingType, "rounding_type"), nullable=False)
 
     quotation: Mapped["Quotation"] = relationship(back_populates="lines")
 
@@ -297,9 +307,10 @@ class OrderLine(Base):
     line_no: Mapped[int] = mapped_column(nullable=False)
     quotation_line_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("quotation_lines.id"))
     product_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("products.id"), nullable=False)
-    quantity: Mapped[Decimal] = mapped_column(Numeric(14, 3), nullable=False)
-    unit_price: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
-    amount: Mapped[Decimal] = mapped_column(Numeric(16, 2), nullable=False)
+    quantity: Mapped[Decimal | None] = mapped_column(Numeric(14, 3))
+    unit_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    amount: Mapped[Decimal] = mapped_column(Numeric(16, 0), nullable=False)
+    rounding_type: Mapped[RoundingType] = mapped_column(_pg_enum(RoundingType, "rounding_type"), nullable=False)
 
     order: Mapped["Order"] = relationship(back_populates="lines")
 
@@ -335,9 +346,10 @@ class PurchaseOrderLine(Base):
     line_no: Mapped[int] = mapped_column(nullable=False)
     order_line_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("order_lines.id"))
     product_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("products.id"), nullable=False)
-    quantity: Mapped[Decimal] = mapped_column(Numeric(14, 3), nullable=False)
-    unit_price: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
-    amount: Mapped[Decimal] = mapped_column(Numeric(16, 2), nullable=False)
+    quantity: Mapped[Decimal | None] = mapped_column(Numeric(14, 3))
+    unit_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    amount: Mapped[Decimal] = mapped_column(Numeric(16, 0), nullable=False)
+    rounding_type: Mapped[RoundingType] = mapped_column(_pg_enum(RoundingType, "rounding_type"), nullable=False)
 
     purchase_order: Mapped["PurchaseOrder"] = relationship(back_populates="lines")
 
@@ -371,9 +383,10 @@ class PurchaseLine(Base):
     line_no: Mapped[int] = mapped_column(nullable=False)
     purchase_order_line_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("purchase_order_lines.id"))
     product_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("products.id"), nullable=False)
-    quantity: Mapped[Decimal] = mapped_column(Numeric(14, 3), nullable=False)
-    unit_price: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
-    amount: Mapped[Decimal] = mapped_column(Numeric(16, 2), nullable=False)
+    quantity: Mapped[Decimal | None] = mapped_column(Numeric(14, 3))
+    unit_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    amount: Mapped[Decimal] = mapped_column(Numeric(16, 0), nullable=False)
+    rounding_type: Mapped[RoundingType] = mapped_column(_pg_enum(RoundingType, "rounding_type"), nullable=False)
 
     purchase: Mapped["Purchase"] = relationship(back_populates="lines")
 
@@ -407,9 +420,10 @@ class SalesLine(Base):
     line_no: Mapped[int] = mapped_column(nullable=False)
     order_line_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("order_lines.id"))
     product_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("products.id"), nullable=False)
-    quantity: Mapped[Decimal] = mapped_column(Numeric(14, 3), nullable=False)
-    unit_price: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
-    amount: Mapped[Decimal] = mapped_column(Numeric(16, 2), nullable=False)
+    quantity: Mapped[Decimal | None] = mapped_column(Numeric(14, 3))
+    unit_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    amount: Mapped[Decimal] = mapped_column(Numeric(16, 0), nullable=False)
+    rounding_type: Mapped[RoundingType] = mapped_column(_pg_enum(RoundingType, "rounding_type"), nullable=False)
 
     sales: Mapped["Sales"] = relationship(back_populates="lines")
 

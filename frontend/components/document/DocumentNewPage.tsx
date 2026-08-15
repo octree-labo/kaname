@@ -5,16 +5,14 @@ import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import type { DocumentModuleConfig } from "@/lib/documentModules";
 import { PartnerPicker } from "@/components/PartnerPicker";
-import { ProductPicker } from "@/components/ProductPicker";
+import { ProductLineFields } from "@/components/ProductLineFields";
+import { buildProductLinePayload, type ProductLineValue } from "@/lib/lineHelpers";
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-interface ProductLineRow {
-  productId: string;
-  quantity: string;
-  unitPrice: string;
+interface ProductLineRow extends ProductLineValue {
   upstreamLineId: string;
 }
 
@@ -28,7 +26,7 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
   const [partnerId, setPartnerId] = useState("");
   const [date, setDate] = useState(today());
   const [productLines, setProductLines] = useState<ProductLineRow[]>([
-    { productId: "", quantity: "", unitPrice: "", upstreamLineId: "" },
+    { productId: "", quantity: "", unitPrice: "", amount: "", upstreamLineId: "" },
   ]);
   const [amountLines, setAmountLines] = useState<AmountLineRow[]>([
     { amount: "", upstreamLineId: "" },
@@ -38,7 +36,7 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
 
   function addLine() {
     if (config.lineKind === "product") {
-      setProductLines((prev) => [...prev, { productId: "", quantity: "", unitPrice: "", upstreamLineId: "" }]);
+      setProductLines((prev) => [...prev, { productId: "", quantity: "", unitPrice: "", amount: "", upstreamLineId: "" }]);
     } else {
       setAmountLines((prev) => [...prev, { amount: "", upstreamLineId: "" }]);
     }
@@ -60,9 +58,7 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
       const lines =
         config.lineKind === "product"
           ? productLines.map((l) => ({
-              productId: Number(l.productId),
-              quantity: Number(l.quantity),
-              unitPrice: Number(l.unitPrice),
+              ...buildProductLinePayload(l),
               ...(config.upstreamLineField && l.upstreamLineId
                 ? { [config.upstreamLineField]: Number(l.upstreamLineId) }
                 : {}),
@@ -116,53 +112,22 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
               + 行を追加
             </button>
           </div>
+          <p className="mt-1 text-xs text-slate-600">
+            数量・単価を両方入力すると金額は自動計算されます（取引先の丸め区分を適用）。どちらか一方でも空欄の場合は金額を直接入力してください。
+          </p>
 
           <div className="mt-2 space-y-2">
             {config.lineKind === "product"
               ? productLines.map((line, i) => (
                   <div key={i} className="flex items-end gap-2 rounded-md border border-slate-200 p-3">
-                    <div className="flex-1">
-                      <label className="block text-xs text-slate-600">商品</label>
-                      <div className="mt-1">
-                        <ProductPicker
-                          value={line.productId}
-                          onChange={(v) =>
-                            setProductLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, productId: v } : l)))
-                          }
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div className="w-24">
-                      <label className="block text-xs text-slate-600">数量</label>
-                      <input
-                        required
-                        type="number"
-                        step="0.001"
-                        value={line.quantity}
-                        onChange={(e) =>
-                          setProductLines((prev) =>
-                            prev.map((l, idx) => (idx === i ? { ...l, quantity: e.target.value } : l))
-                          )
-                        }
-                        className="mt-1 w-full"
-                      />
-                    </div>
-                    <div className="w-28">
-                      <label className="block text-xs text-slate-600">単価</label>
-                      <input
-                        required
-                        type="number"
-                        step="0.01"
-                        value={line.unitPrice}
-                        onChange={(e) =>
-                          setProductLines((prev) =>
-                            prev.map((l, idx) => (idx === i ? { ...l, unitPrice: e.target.value } : l))
-                          )
-                        }
-                        className="mt-1 w-full"
-                      />
-                    </div>
+                    <ProductLineFields
+                      value={line}
+                      onChange={(next) =>
+                        setProductLines((prev) =>
+                          prev.map((l, idx) => (idx === i ? { ...next, upstreamLineId: l.upstreamLineId } : l))
+                        )
+                      }
+                    />
                     {config.upstreamLineField && (
                       <div className="w-40">
                         <label className="block text-xs text-slate-600">{config.upstreamLabel}</label>

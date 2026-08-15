@@ -145,6 +145,7 @@ export default function QuotationDetailPage() {
                 <th className="px-3 py-2 text-right">受注済数量</th>
                 <th className="px-3 py-2 text-right">見積残数</th>
                 <th className="px-3 py-2 text-right">単価</th>
+                <th className="px-3 py-2 text-right">金額</th>
                 <th className="px-3 py-2 w-32">受注数量指定</th>
               </tr>
             </thead>
@@ -165,6 +166,7 @@ export default function QuotationDetailPage() {
                   <td className="px-3 py-2 text-right">{formatNumber(line.orderedQty)}</td>
                   <td className="px-3 py-2 text-right font-medium">{formatNumber(line.remainingQty)}</td>
                   <td className="px-3 py-2 text-right">{formatNumber(line.unitPrice)}</td>
+                  <td className="px-3 py-2 text-right font-medium">{formatNumber(line.amount)}</td>
                   <td className="px-3 py-2">
                     <input
                       placeholder={line.remainingQty}

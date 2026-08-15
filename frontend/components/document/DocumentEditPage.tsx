@@ -6,13 +6,14 @@ import useSWR from "swr";
 import { api, ApiError, fetcher } from "@/lib/api";
 import type { DocumentModuleConfig } from "@/lib/documentModules";
 import { PartnerPicker } from "@/components/PartnerPicker";
-import { ProductPicker } from "@/components/ProductPicker";
+import { ProductLineFields } from "@/components/ProductLineFields";
+import { buildProductLinePayload, type ProductLineValue } from "@/lib/lineHelpers";
 
 interface DocLine {
   id: number;
   productId?: number;
-  quantity?: string;
-  unitPrice?: string;
+  quantity?: string | null;
+  unitPrice?: string | null;
   amount: string;
 }
 
@@ -24,11 +25,8 @@ interface DocDetail {
   [key: string]: unknown;
 }
 
-interface ProductLineEdit {
+interface ProductLineEdit extends ProductLineValue {
   id: number;
-  productId: string;
-  quantity: string;
-  unitPrice: string;
 }
 
 interface AmountLineEdit {
@@ -64,6 +62,7 @@ export function DocumentEditPage({ config }: { config: DocumentModuleConfig }) {
           productId: String(l.productId ?? ""),
           quantity: l.quantity ?? "",
           unitPrice: l.unitPrice ?? "",
+          amount: l.amount,
         }))
       );
     } else {
@@ -81,12 +80,7 @@ export function DocumentEditPage({ config }: { config: DocumentModuleConfig }) {
     try {
       const lines =
         config.lineKind === "product"
-          ? productLines.map((l) => ({
-              id: l.id,
-              productId: Number(l.productId),
-              quantity: Number(l.quantity),
-              unitPrice: Number(l.unitPrice),
-            }))
+          ? productLines.map((l) => ({ id: l.id, ...buildProductLinePayload(l) }))
           : amountLines.map((l) => ({ id: l.id, amount: Number(l.amount) }));
 
       const body: Record<string, unknown> = {
@@ -110,6 +104,7 @@ export function DocumentEditPage({ config }: { config: DocumentModuleConfig }) {
       <h1 className="text-xl font-semibold text-slate-900">{config.label} 編集</h1>
       <p className="mt-1 text-xs text-slate-600">
         既存明細の商品・数量・単価（または金額）のみ変更できます。明細の追加・削除には対応していません。
+        数量・単価を両方入力すると金額は取引先の丸め区分で自動計算されます。
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-5">
@@ -142,44 +137,12 @@ export function DocumentEditPage({ config }: { config: DocumentModuleConfig }) {
             {config.lineKind === "product"
               ? productLines.map((line, i) => (
                   <div key={line.id} className="flex items-end gap-2 rounded-md border border-slate-200 p-3">
-                    <div className="flex-1">
-                      <label className="block text-xs text-slate-600">商品</label>
-                      <div className="mt-1">
-                        <ProductPicker
-                          value={line.productId}
-                          onChange={(v) =>
-                            setProductLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, productId: v } : l)))
-                          }
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div className="w-24">
-                      <label className="block text-xs text-slate-600">数量</label>
-                      <input
-                        required
-                        type="number"
-                        step="0.001"
-                        value={line.quantity}
-                        onChange={(e) =>
-                          setProductLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, quantity: e.target.value } : l)))
-                        }
-                        className="mt-1 w-full"
-                      />
-                    </div>
-                    <div className="w-28">
-                      <label className="block text-xs text-slate-600">単価</label>
-                      <input
-                        required
-                        type="number"
-                        step="0.01"
-                        value={line.unitPrice}
-                        onChange={(e) =>
-                          setProductLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, unitPrice: e.target.value } : l)))
-                        }
-                        className="mt-1 w-full"
-                      />
-                    </div>
+                    <ProductLineFields
+                      value={line}
+                      onChange={(next) =>
+                        setProductLines((prev) => prev.map((l, idx) => (idx === i ? { ...next, id: l.id } : l)))
+                      }
+                    />
                   </div>
                 ))
               : amountLines.map((line, i) => (

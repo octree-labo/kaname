@@ -30,3 +30,13 @@ export function formatApprovalStatus(status: string): string {
 export function formatDocumentStatus(status: string): string {
   return DOCUMENT_STATUS_LABEL[status] ?? status;
 }
+
+export const ROUNDING_TYPE_LABEL: Record<string, string> = {
+  floor: "切り捨て",
+  ceil: "切り上げ",
+  round: "四捨五入",
+};
+
+export function formatRoundingType(value: string): string {
+  return ROUNDING_TYPE_LABEL[value] ?? value;
+}

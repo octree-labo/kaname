@@ -7,7 +7,7 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
-from .models import ApprovalStatus, DocumentStatus, PartnerType, PriceType, UserRole, UserStatus
+from .models import ApprovalStatus, DocumentStatus, PartnerType, PriceType, RoundingType, UserRole, UserStatus
 
 
 class CamelModel(BaseModel):
@@ -61,6 +61,7 @@ class PartnerOut(CamelModel):
     id: int
     partner_code: str
     partner_type: PartnerType
+    rounding_type: RoundingType
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -73,11 +74,13 @@ class PartnerWithCurrentDetailOut(PartnerOut):
 class PartnerCreateRequest(CamelModel):
     partner_code: str | None = None  # 空欄なら自動採番（6桁ゼロサプレス）
     partner_type: PartnerType
+    rounding_type: RoundingType = RoundingType.round
     detail: PartnerDetailIn
 
 
 class PartnerPatchRequest(CamelModel):
     partner_type: PartnerType | None = None
+    rounding_type: RoundingType | None = None
     is_active: bool | None = None
 
 
@@ -159,8 +162,11 @@ class PriceMasterOut(PriceMasterIn):
 # ------------------------------------------------------------
 class QuotationLineIn(CamelModel):
     product_id: int
-    quantity: Decimal
-    unit_price: Decimal
+    # 数量・単価が両方揃っていればamountは自動計算されるため送信不要。
+    # どちらか一方でも未入力の場合のみ amount を直接指定する。
+    quantity: Decimal | None = None
+    unit_price: Decimal | None = None
+    amount: Decimal | None = None
 
 
 class QuotationLineOut(QuotationLineIn):
@@ -168,6 +174,7 @@ class QuotationLineOut(QuotationLineIn):
     quotation_id: int
     line_no: int
     amount: Decimal
+    rounding_type: RoundingType
     product_code: str | None = None
     product_name: str | None = None
 
@@ -223,6 +230,7 @@ class ProductLinePatch(CamelModel):
     product_id: int | None = None
     quantity: Decimal | None = None
     unit_price: Decimal | None = None
+    amount: Decimal | None = None
 
 
 class AmountLinePatch(CamelModel):
@@ -244,8 +252,9 @@ class QuotationPatch(CamelModel):
 class OrderLineIn(CamelModel):
     quotation_line_id: int | None = None
     product_id: int
-    quantity: Decimal
-    unit_price: Decimal
+    quantity: Decimal | None = None
+    unit_price: Decimal | None = None
+    amount: Decimal | None = None
 
 
 class OrderLineOut(OrderLineIn):
@@ -253,6 +262,7 @@ class OrderLineOut(OrderLineIn):
     order_id: int
     line_no: int
     amount: Decimal
+    rounding_type: RoundingType
     product_code: str | None = None
     product_name: str | None = None
 
@@ -297,8 +307,9 @@ class OrderPatch(CamelModel):
 class PurchaseOrderLineIn(CamelModel):
     order_line_id: int | None = None
     product_id: int
-    quantity: Decimal
-    unit_price: Decimal
+    quantity: Decimal | None = None
+    unit_price: Decimal | None = None
+    amount: Decimal | None = None
 
 
 class PurchaseOrderLineOut(PurchaseOrderLineIn):
@@ -306,6 +317,7 @@ class PurchaseOrderLineOut(PurchaseOrderLineIn):
     purchase_order_id: int
     line_no: int
     amount: Decimal
+    rounding_type: RoundingType
     product_code: str | None = None
     product_name: str | None = None
 
@@ -348,8 +360,9 @@ class PurchaseOrderPatch(CamelModel):
 class PurchaseLineIn(CamelModel):
     purchase_order_line_id: int | None = None
     product_id: int
-    quantity: Decimal
-    unit_price: Decimal
+    quantity: Decimal | None = None
+    unit_price: Decimal | None = None
+    amount: Decimal | None = None
 
 
 class PurchaseLineOut(PurchaseLineIn):
@@ -357,6 +370,7 @@ class PurchaseLineOut(PurchaseLineIn):
     purchase_id: int
     line_no: int
     amount: Decimal
+    rounding_type: RoundingType
     product_code: str | None = None
     product_name: str | None = None
 
@@ -394,8 +408,9 @@ class PurchasePatch(CamelModel):
 class SalesLineIn(CamelModel):
     order_line_id: int | None = None
     product_id: int
-    quantity: Decimal
-    unit_price: Decimal
+    quantity: Decimal | None = None
+    unit_price: Decimal | None = None
+    amount: Decimal | None = None
 
 
 class SalesLineOut(SalesLineIn):
@@ -403,6 +418,7 @@ class SalesLineOut(SalesLineIn):
     sales_id: int
     line_no: int
     amount: Decimal
+    rounding_type: RoundingType
     product_code: str | None = None
     product_name: str | None = None
 
