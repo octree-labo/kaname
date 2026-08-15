@@ -27,7 +27,7 @@ export default function ProductsPage() {
     setSubmitting(true);
     try {
       await api.post<ProductOut>("/api/products", {
-        productCode,
+        productCode: productCode || undefined,
         name,
         category: category || undefined,
         unit,
@@ -45,16 +45,25 @@ export default function ProductsPage() {
   }
 
   const columns: Column<ProductOut>[] = [
-    { key: "productCode", label: "商品コード" },
-    { key: "name", label: "商品名" },
-    { key: "category", label: "分類", render: (r) => r.category ?? "-" },
-    { key: "unit", label: "単位" },
-    { key: "isActive", label: "状態", render: (r) => (r.isActive ? "有効" : "無効") },
+    { key: "productCode", label: "商品コード", sortable: true },
+    { key: "name", label: "商品名", sortable: true },
+    { key: "category", label: "分類", sortable: true, render: (r) => r.category ?? "-" },
+    { key: "unit", label: "単位", sortable: true },
+    { key: "isActive", label: "状態", sortable: true, render: (r) => (r.isActive ? "有効" : "無効") },
+    {
+      key: "edit",
+      label: "",
+      render: (r) => (
+        <a href={`/products/${r.id}/edit`} className="text-slate-700 hover:underline">
+          編集
+        </a>
+      ),
+    },
   ];
 
   return (
-    <div>
-      <div className="flex items-center justify-between">
+    <div className="flex h-full flex-col">
+      <div className="flex shrink-0 items-center justify-between">
         <h1 className="text-xl font-semibold text-slate-900">商品</h1>
         <button
           onClick={() => setShowForm((v) => !v)}
@@ -67,11 +76,17 @@ export default function ProductsPage() {
       {showForm && (
         <form
           onSubmit={handleSubmit}
-          className="mt-4 grid max-w-2xl grid-cols-2 gap-3 rounded-lg border border-slate-200 bg-white p-4"
+          className="mt-4 grid shrink-0 max-w-2xl grid-cols-2 gap-3 rounded-lg border border-slate-200 bg-white p-4"
         >
           <div>
             <label htmlFor="productCode" className="block text-sm font-medium text-slate-700">商品コード</label>
-            <input id="productCode" required value={productCode} onChange={(e) => setProductCode(e.target.value)} className="mt-1 w-full" />
+            <input
+              id="productCode"
+              value={productCode}
+              onChange={(e) => setProductCode(e.target.value)}
+              placeholder="空欄で自動採番（000001〜）"
+              className="mt-1 w-full"
+            />
           </div>
           <div>
             <label htmlFor="unit" className="block text-sm font-medium text-slate-700">単位</label>
@@ -103,10 +118,10 @@ export default function ProductsPage() {
         placeholder="商品名・コードで検索"
         value={keyword}
         onChange={(e) => setKeyword(e.target.value)}
-        className="mt-4 w-72"
+        className="mt-4 w-72 shrink-0"
       />
 
-      <div className="mt-4">
+      <div className="mt-4 min-h-0 flex-1">
         <DataTable columns={columns} rows={data ?? []} />
       </div>
     </div>

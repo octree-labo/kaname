@@ -28,7 +28,7 @@ export default function NewPartnerPage() {
     setSubmitting(true);
     try {
       const created = await api.post<PartnerOut>("/api/partners", {
-        partnerCode,
+        partnerCode: partnerCode || undefined,
         partnerType,
         detail: {
           effectiveDate,
@@ -54,7 +54,13 @@ export default function NewPartnerPage() {
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         <div>
           <label htmlFor="partnerCode" className="block text-sm font-medium text-slate-700">取引先コード</label>
-          <input id="partnerCode" required value={partnerCode} onChange={(e) => setPartnerCode(e.target.value)} className="mt-1 w-full" />
+          <input
+            id="partnerCode"
+            value={partnerCode}
+            onChange={(e) => setPartnerCode(e.target.value)}
+            placeholder="空欄で自動採番（000001〜）"
+            className="mt-1 w-full"
+          />
         </div>
 
         <div>

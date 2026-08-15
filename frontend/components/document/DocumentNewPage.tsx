@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import type { DocumentModuleConfig } from "@/lib/documentModules";
+import { PartnerPicker } from "@/components/PartnerPicker";
+import { ProductPicker } from "@/components/ProductPicker";
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -92,8 +94,10 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
       <form onSubmit={handleSubmit} className="mt-6 space-y-5">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label htmlFor="docPartnerId" className="block text-sm font-medium text-slate-700">取引先ID</label>
-            <input id="docPartnerId" required value={partnerId} onChange={(e) => setPartnerId(e.target.value)} className="mt-1 w-full" />
+            <label htmlFor="docPartnerId" className="block text-sm font-medium text-slate-700">取引先</label>
+            <div className="mt-1">
+              <PartnerPicker id="docPartnerId" value={partnerId} onChange={setPartnerId} required />
+            </div>
           </div>
           <div>
             <label htmlFor="docDate" className="block text-sm font-medium text-slate-700">{config.dateLabel}</label>
@@ -118,17 +122,16 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
               ? productLines.map((line, i) => (
                   <div key={i} className="flex items-end gap-2 rounded-md border border-slate-200 p-3">
                     <div className="flex-1">
-                      <label className="block text-xs text-slate-600">商品ID</label>
-                      <input
-                        required
-                        value={line.productId}
-                        onChange={(e) =>
-                          setProductLines((prev) =>
-                            prev.map((l, idx) => (idx === i ? { ...l, productId: e.target.value } : l))
-                          )
-                        }
-                        className="mt-1 w-full"
-                      />
+                      <label className="block text-xs text-slate-600">商品</label>
+                      <div className="mt-1">
+                        <ProductPicker
+                          value={line.productId}
+                          onChange={(v) =>
+                            setProductLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, productId: v } : l)))
+                          }
+                          required
+                        />
+                      </div>
                     </div>
                     <div className="w-24">
                       <label className="block text-xs text-slate-600">数量</label>

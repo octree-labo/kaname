@@ -5,7 +5,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from .. import crud, schemas
+from .. import crud, models, schemas
 from ..database import get_db
 from ..security import SessionUser, get_current_user
 
@@ -138,11 +138,45 @@ def list_price_master(
     partner_id: int | None = None,
     product_id: int | None = None,
     as_of: date | None = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
-    return crud.list_price_master(db, price_type=price_type, partner_id=partner_id, product_id=product_id, as_of=as_of)
+    return crud.list_price_master(
+        db,
+        price_type=price_type,
+        partner_id=partner_id,
+        product_id=product_id,
+        as_of=as_of,
+        limit=page_size,
+        offset=(page - 1) * page_size,
+    )
 
 
 @router.post("/price-master", response_model=schemas.PriceMasterOut, status_code=201, tags=["共通マスタ"])
 def create_price_master(payload: schemas.PriceMasterIn, db: Session = Depends(get_db)):
     return crud.create_price_master(db, payload.model_dump())
+
+
+@router.get("/price-master/{price_id}", response_model=schemas.PriceMasterOut, tags=["共通マスタ"])
+def get_price_master(price_id: int, db: Session = Depends(get_db)):
+    row = crud.get_price_master(db, price_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="price not found")
+    return row
+
+
+@router.patch("/price-master/{price_id}", response_model=schemas.PriceMasterOut, tags=["共通マスタ"])
+def update_price_master(price_id: int, payload: schemas.PriceMasterPatch, db: Session = Depends(get_db)):
+    row = db.get(models.PriceMaster, price_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="price not found")
+    return crud.update_price_master(db, row, payload.model_dump(exclude_unset=True))
+
+
+# ------------------------------------------------------------
+# 倉庫
+# ------------------------------------------------------------
+@router.get("/warehouses", response_model=list[schemas.WarehouseOut], tags=["共通マスタ"])
+def list_warehouses(db: Session = Depends(get_db)):
+    return crud.list_warehouses(db)

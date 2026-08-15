@@ -1,9 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/api";
-import type { InventoryStockOut, InventoryAllocationOut } from "@/lib/types";
+import type { InventoryStockOut, InventoryAllocationOut, WarehouseOut } from "@/lib/types";
 import { formatNumber } from "@/lib/format";
+import { DataTable, type Column } from "@/components/DataTable";
+import { ProductPicker } from "@/components/ProductPicker";
 
 const STAGE_LABEL: Record<string, string> = {
   quotation: "見積時点",
@@ -11,65 +14,137 @@ const STAGE_LABEL: Record<string, string> = {
   sales: "売上時点",
 };
 
+interface StockRow extends InventoryStockOut {
+  id: number; // DataTable要件のため合成
+}
+
+type AllocationRow = InventoryAllocationOut;
+
 export default function InventoryPage() {
-  const { data: stocks } = useSWR<InventoryStockOut[]>("/api/inventory/stocks", fetcher);
-  const { data: allocations } = useSWR<InventoryAllocationOut[]>("/api/inventory/allocations", fetcher);
+  const [stockProductId, setStockProductId] = useState("");
+  const [stockWarehouseId, setStockWarehouseId] = useState("");
+  const [allocProductId, setAllocProductId] = useState("");
+  const [allocStage, setAllocStage] = useState("");
+
+  const { data: warehouses } = useSWR<WarehouseOut[]>("/api/warehouses", fetcher);
+
+  const stockParams = new URLSearchParams();
+  if (stockProductId) stockParams.set("product_id", stockProductId);
+  if (stockWarehouseId) stockParams.set("warehouse_id", stockWarehouseId);
+  const { data: stocks } = useSWR<InventoryStockOut[]>(`/api/inventory/stocks?${stockParams.toString()}`, fetcher);
+
+  const allocParams = new URLSearchParams();
+  if (allocProductId) allocParams.set("product_id", allocProductId);
+  if (allocStage) allocParams.set("stage", allocStage);
+  const { data: allocations } = useSWR<InventoryAllocationOut[]>(`/api/inventory/allocations?${allocParams.toString()}`, fetcher);
+
+  const stockRows: StockRow[] = (stocks ?? []).map((s, i) => ({ ...s, id: i }));
+  const allocRows: AllocationRow[] = (allocations ?? []).map((a) => ({ ...a }));
+
+  const stockColumns: Column<StockRow>[] = [
+    {
+      key: "productName",
+      label: "商品",
+      sortable: true,
+      render: (r) => (r.productCode ? `${r.productCode} ${r.productName ?? ""}` : r.productId),
+    },
+    {
+      key: "warehouseName",
+      label: "倉庫",
+      sortable: true,
+      render: (r) => (r.warehouseCode ? `${r.warehouseCode} ${r.warehouseName ?? ""}` : r.warehouseId),
+    },
+    {
+      key: "quantityOnHand",
+      label: "在庫数",
+      align: "right",
+      sortable: true,
+      sortValue: (r) => Number(r.quantityOnHand),
+      render: (r) => formatNumber(r.quantityOnHand),
+    },
+  ];
+
+  const allocColumns: Column<AllocationRow>[] = [
+    {
+      key: "allocationStage",
+      label: "引当段階",
+      sortable: true,
+      render: (r) => STAGE_LABEL[r.allocationStage] ?? r.allocationStage,
+    },
+    {
+      key: "productName",
+      label: "商品",
+      sortable: true,
+      render: (r) => (r.productCode ? `${r.productCode} ${r.productName ?? ""}` : r.productId),
+    },
+    {
+      key: "warehouseName",
+      label: "倉庫",
+      sortable: true,
+      render: (r) => (r.warehouseCode ? `${r.warehouseCode} ${r.warehouseName ?? ""}` : r.warehouseId ?? "-"),
+    },
+    {
+      key: "quantity",
+      label: "数量",
+      align: "right",
+      sortable: true,
+      sortValue: (r) => Number(r.quantity),
+      render: (r) => formatNumber(r.quantity),
+    },
+    {
+      key: "line",
+      label: "参照明細",
+      render: (r) => r.quotationLineId ?? r.orderLineId ?? r.salesLineId ?? "-",
+    },
+  ];
 
   return (
-    <div className="max-w-3xl space-y-8">
-      <h1 className="text-xl font-semibold text-slate-900">在庫・引当</h1>
+    <div className="flex h-full flex-col gap-8 overflow-hidden">
+      <h1 className="shrink-0 text-xl font-semibold text-slate-900">在庫・引当</h1>
 
-      <section className="rounded-lg border border-slate-200 bg-white p-5">
-        <h2 className="text-sm font-semibold text-slate-700">在庫現在数</h2>
-        <div className="mt-3 overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-600">
-                <th className="px-3 py-2">商品ID</th>
-                <th className="px-3 py-2">倉庫ID</th>
-                <th className="px-3 py-2 text-right">在庫数</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(stocks ?? []).map((s) => (
-                <tr key={`${s.productId}-${s.warehouseId}`} className="border-b border-slate-100 last:border-0">
-                  <td className="px-3 py-2">{s.productId}</td>
-                  <td className="px-3 py-2">{s.warehouseId}</td>
-                  <td className="px-3 py-2 text-right">{formatNumber(s.quantityOnHand)}</td>
-                </tr>
+      <section className="flex min-h-0 flex-1 flex-col">
+        <h2 className="shrink-0 text-sm font-semibold text-slate-700">在庫現在数</h2>
+        <div className="mt-2 grid shrink-0 grid-cols-2 gap-3 rounded-lg border border-slate-200 bg-white p-3 sm:grid-cols-4">
+          <div>
+            <label className="block text-xs text-slate-600">商品で絞込み</label>
+            <ProductPicker value={stockProductId} onChange={setStockProductId} />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-600">倉庫で絞込み</label>
+            <select value={stockWarehouseId} onChange={(e) => setStockWarehouseId(e.target.value)} className="w-full">
+              <option value="">すべて</option>
+              {(warehouses ?? []).map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.warehouseCode} {w.name}
+                </option>
               ))}
-            </tbody>
-          </table>
+            </select>
+          </div>
+        </div>
+        <div className="mt-2 min-h-0 flex-1">
+          <DataTable columns={stockColumns} rows={stockRows} />
         </div>
       </section>
 
-      <section className="rounded-lg border border-slate-200 bg-white p-5">
-        <h2 className="text-sm font-semibold text-slate-700">在庫引当（見積/受注/売上時点で独立管理）</h2>
-        <div className="mt-3 overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-600">
-                <th className="px-3 py-2">引当段階</th>
-                <th className="px-3 py-2">商品ID</th>
-                <th className="px-3 py-2">倉庫ID</th>
-                <th className="px-3 py-2 text-right">数量</th>
-                <th className="px-3 py-2">参照明細</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(allocations ?? []).map((a) => (
-                <tr key={a.id} className="border-b border-slate-100 last:border-0">
-                  <td className="px-3 py-2">{STAGE_LABEL[a.allocationStage] ?? a.allocationStage}</td>
-                  <td className="px-3 py-2">{a.productId}</td>
-                  <td className="px-3 py-2">{a.warehouseId ?? "-"}</td>
-                  <td className="px-3 py-2 text-right">{formatNumber(a.quantity)}</td>
-                  <td className="px-3 py-2 text-slate-600">
-                    {a.quotationLineId ?? a.orderLineId ?? a.salesLineId ?? "-"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <section className="flex min-h-0 flex-1 flex-col">
+        <h2 className="shrink-0 text-sm font-semibold text-slate-700">在庫引当（見積/受注/売上時点で独立管理）</h2>
+        <div className="mt-2 grid shrink-0 grid-cols-2 gap-3 rounded-lg border border-slate-200 bg-white p-3 sm:grid-cols-4">
+          <div>
+            <label className="block text-xs text-slate-600">商品で絞込み</label>
+            <ProductPicker value={allocProductId} onChange={setAllocProductId} />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-600">引当段階</label>
+            <select value={allocStage} onChange={(e) => setAllocStage(e.target.value)} className="w-full">
+              <option value="">すべて</option>
+              <option value="quotation">見積時点</option>
+              <option value="order">受注時点</option>
+              <option value="sales">売上時点</option>
+            </select>
+          </div>
+        </div>
+        <div className="mt-2 min-h-0 flex-1">
+          <DataTable columns={allocColumns} rows={allocRows} />
         </div>
       </section>
     </div>

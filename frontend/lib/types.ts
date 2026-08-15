@@ -70,11 +70,21 @@ export interface ProductOut {
   isActive: boolean;
 }
 
+export interface WarehouseOut {
+  id: number;
+  warehouseCode: string;
+  name: string;
+}
+
 export interface PriceMasterOut {
   id: number;
   priceType: PriceType;
   partnerId: number | null;
+  partnerCode: string | null;
+  partnerName: string | null;
   productId: number;
+  productCode: string | null;
+  productName: string | null;
   unitPrice: string;
   effectiveStartDate: string;
   effectiveEndDate: string | null;
@@ -100,6 +110,8 @@ export interface LineBase {
   id: number;
   lineNo: number;
   productId?: number;
+  productCode?: string | null;
+  productName?: string | null;
   quantity?: string;
   unitPrice?: string;
   amount: string;
@@ -121,6 +133,8 @@ export interface QuotationOut {
   id: number;
   quotationNo: string;
   partnerId: number;
+  partnerCode: string | null;
+  partnerName: string | null;
   quotationDate: string;
   expiryDate: string | null;
   conditionText: string | null;
@@ -152,6 +166,8 @@ export interface OrderOut {
   id: number;
   orderNo: string;
   partnerId: number;
+  partnerCode: string | null;
+  partnerName: string | null;
   orderDate: string;
   status: DocumentStatus;
 }
@@ -177,6 +193,8 @@ export interface PurchaseOrderOut {
   id: number;
   purchaseOrderNo: string;
   partnerId: number;
+  partnerCode: string | null;
+  partnerName: string | null;
   orderDate: string;
   status: DocumentStatus;
 }
@@ -197,6 +215,8 @@ export interface PurchaseOut {
   id: number;
   purchaseNo: string;
   partnerId: number;
+  partnerCode: string | null;
+  partnerName: string | null;
   purchaseDate: string;
   status: DocumentStatus;
 }
@@ -217,6 +237,8 @@ export interface SalesOut {
   id: number;
   salesNo: string;
   partnerId: number;
+  partnerCode: string | null;
+  partnerName: string | null;
   salesDate: string;
   status: DocumentStatus;
 }
@@ -234,6 +256,8 @@ export interface ReceiptOut {
   id: number;
   receiptNo: string;
   partnerId: number;
+  partnerCode: string | null;
+  partnerName: string | null;
   receiptDate: string;
   paymentMethod: string | null;
   status: DocumentStatus;
@@ -252,6 +276,8 @@ export interface PaymentOut {
   id: number;
   paymentNo: string;
   partnerId: number;
+  partnerCode: string | null;
+  partnerName: string | null;
   paymentDate: string;
   paymentMethod: string | null;
   status: DocumentStatus;
@@ -263,7 +289,11 @@ export interface PaymentDetailOut extends PaymentOut {
 
 export interface InventoryStockOut {
   productId: number;
+  productCode: string | null;
+  productName: string | null;
   warehouseId: number;
+  warehouseCode: string | null;
+  warehouseName: string | null;
   quantityOnHand: string;
 }
 
@@ -274,7 +304,11 @@ export interface InventoryAllocationOut {
   orderLineId: number | null;
   salesLineId: number | null;
   productId: number;
+  productCode: string | null;
+  productName: string | null;
   warehouseId: number | null;
+  warehouseCode: string | null;
+  warehouseName: string | null;
   quantity: string;
 }
 

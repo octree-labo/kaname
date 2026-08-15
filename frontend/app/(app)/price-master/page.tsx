@@ -6,13 +6,23 @@ import { api, ApiError, fetcher } from "@/lib/api";
 import type { PriceMasterOut, PriceType } from "@/lib/types";
 import { DataTable, type Column } from "@/components/DataTable";
 import { formatNumber } from "@/lib/format";
+import { PartnerPicker } from "@/components/PartnerPicker";
+import { ProductPicker } from "@/components/ProductPicker";
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
 export default function PriceMasterPage() {
-  const { data, mutate } = useSWR<PriceMasterOut[]>("/api/price-master", fetcher);
+  const [partnerFilter, setPartnerFilter] = useState("");
+  const [productFilter, setProductFilter] = useState("");
+
+  const params = new URLSearchParams();
+  if (partnerFilter) params.set("partner_id", partnerFilter);
+  if (productFilter) params.set("product_id", productFilter);
+  const query = params.toString();
+
+  const { data, mutate } = useSWR<PriceMasterOut[]>(`/api/price-master${query ? `?${query}` : ""}`, fetcher);
 
   const [showForm, setShowForm] = useState(false);
   const [priceType, setPriceType] = useState<PriceType>("sales");
@@ -48,17 +58,36 @@ export default function PriceMasterPage() {
   }
 
   const columns: Column<PriceMasterOut>[] = [
-    { key: "priceType", label: "種別", render: (r) => (r.priceType === "sales" ? "販売単価" : "仕入単価") },
-    { key: "productId", label: "商品ID" },
-    { key: "partnerId", label: "取引先ID", render: (r) => r.partnerId ?? "(標準)" },
-    { key: "unitPrice", label: "単価", align: "right", render: (r) => formatNumber(r.unitPrice) },
-    { key: "effectiveStartDate", label: "適用開始日" },
-    { key: "effectiveEndDate", label: "適用終了日", render: (r) => r.effectiveEndDate ?? "-" },
+    { key: "priceType", label: "種別", sortable: true, render: (r) => (r.priceType === "sales" ? "販売単価" : "仕入単価") },
+    {
+      key: "productName",
+      label: "商品",
+      sortable: true,
+      render: (r) => (r.productCode ? `${r.productCode} ${r.productName ?? ""}` : r.productId),
+    },
+    {
+      key: "partnerName",
+      label: "取引先",
+      sortable: true,
+      render: (r) => (r.partnerCode ? `${r.partnerCode} ${r.partnerName ?? ""}` : "(標準)"),
+    },
+    { key: "unitPrice", label: "単価", align: "right", sortable: true, sortValue: (r) => Number(r.unitPrice), render: (r) => formatNumber(r.unitPrice) },
+    { key: "effectiveStartDate", label: "適用開始日", sortable: true },
+    { key: "effectiveEndDate", label: "適用終了日", sortable: true, render: (r) => r.effectiveEndDate ?? "-" },
+    {
+      key: "edit",
+      label: "",
+      render: (r) => (
+        <a href={`/price-master/${r.id}/edit`} className="text-slate-700 hover:underline">
+          編集
+        </a>
+      ),
+    },
   ];
 
   return (
-    <div>
-      <div className="flex items-center justify-between">
+    <div className="flex h-full flex-col">
+      <div className="flex shrink-0 items-center justify-between">
         <h1 className="text-xl font-semibold text-slate-900">単価マスタ</h1>
         <button
           onClick={() => setShowForm((v) => !v)}
@@ -71,7 +100,7 @@ export default function PriceMasterPage() {
       {showForm && (
         <form
           onSubmit={handleSubmit}
-          className="mt-4 grid max-w-2xl grid-cols-2 gap-3 rounded-lg border border-slate-200 bg-white p-4"
+          className="mt-4 grid shrink-0 max-w-2xl grid-cols-2 gap-3 rounded-lg border border-slate-200 bg-white p-4"
         >
           <div>
             <label htmlFor="priceType" className="block text-sm font-medium text-slate-700">種別</label>
@@ -81,12 +110,16 @@ export default function PriceMasterPage() {
             </select>
           </div>
           <div>
-            <label htmlFor="pmPartnerId" className="block text-sm font-medium text-slate-700">取引先ID（空欄=標準単価）</label>
-            <input id="pmPartnerId" value={partnerId} onChange={(e) => setPartnerId(e.target.value)} className="mt-1 w-full" />
+            <label htmlFor="pmPartnerId" className="block text-sm font-medium text-slate-700">取引先（空欄=標準単価）</label>
+            <div className="mt-1">
+              <PartnerPicker id="pmPartnerId" value={partnerId} onChange={setPartnerId} />
+            </div>
           </div>
           <div>
-            <label htmlFor="pmProductId" className="block text-sm font-medium text-slate-700">商品ID</label>
-            <input id="pmProductId" required value={productId} onChange={(e) => setProductId(e.target.value)} className="mt-1 w-full" />
+            <label htmlFor="pmProductId" className="block text-sm font-medium text-slate-700">商品</label>
+            <div className="mt-1">
+              <ProductPicker id="pmProductId" value={productId} onChange={setProductId} required />
+            </div>
           </div>
           <div>
             <label htmlFor="pmUnitPrice" className="block text-sm font-medium text-slate-700">単価</label>
@@ -116,7 +149,18 @@ export default function PriceMasterPage() {
         </form>
       )}
 
-      <div className="mt-4">
+      <div className="mt-4 grid shrink-0 grid-cols-2 gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-4">
+        <div>
+          <label className="block text-xs text-slate-600">取引先で絞込み</label>
+          <PartnerPicker value={partnerFilter} onChange={setPartnerFilter} />
+        </div>
+        <div>
+          <label className="block text-xs text-slate-600">商品で絞込み</label>
+          <ProductPicker value={productFilter} onChange={setProductFilter} />
+        </div>
+      </div>
+
+      <div className="mt-4 min-h-0 flex-1">
         <DataTable columns={columns} rows={data ?? []} />
       </div>
     </div>

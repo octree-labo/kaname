@@ -71,7 +71,7 @@ class PartnerWithCurrentDetailOut(PartnerOut):
 
 
 class PartnerCreateRequest(CamelModel):
-    partner_code: str
+    partner_code: str | None = None  # 空欄なら自動採番（6桁ゼロサプレス）
     partner_type: PartnerType
     detail: PartnerDetailIn
 
@@ -104,6 +104,16 @@ class TransactionHistoryResponse(CamelModel):
 # 共通マスタ: 商品 / 単価
 # ------------------------------------------------------------
 class ProductIn(CamelModel):
+    product_code: str | None = None  # 空欄なら自動採番（6桁ゼロサプレス）
+    name: str
+    category: str | None = None
+    unit: str
+    default_supplier_id: int | None = None
+    is_active: bool = True
+
+
+class ProductOut(CamelModel):
+    id: int
     product_code: str
     name: str
     category: str | None = None
@@ -112,8 +122,10 @@ class ProductIn(CamelModel):
     is_active: bool = True
 
 
-class ProductOut(ProductIn):
+class WarehouseOut(CamelModel):
     id: int
+    warehouse_code: str
+    name: str
 
 
 class PriceMasterIn(CamelModel):
@@ -125,8 +137,21 @@ class PriceMasterIn(CamelModel):
     effective_end_date: date | None = None
 
 
+class PriceMasterPatch(CamelModel):
+    price_type: PriceType | None = None
+    partner_id: int | None = None
+    product_id: int | None = None
+    unit_price: Decimal | None = None
+    effective_start_date: date | None = None
+    effective_end_date: date | None = None
+
+
 class PriceMasterOut(PriceMasterIn):
     id: int
+    partner_code: str | None = None
+    partner_name: str | None = None
+    product_code: str | None = None
+    product_name: str | None = None
 
 
 # ------------------------------------------------------------
@@ -143,6 +168,8 @@ class QuotationLineOut(QuotationLineIn):
     quotation_id: int
     line_no: int
     amount: Decimal
+    product_code: str | None = None
+    product_name: str | None = None
 
 
 class QuotationLineWithRemainingOut(QuotationLineOut):
@@ -162,6 +189,8 @@ class QuotationOut(CamelModel):
     id: int
     quotation_no: str
     partner_id: int
+    partner_code: str | None = None
+    partner_name: str | None = None
     quotation_date: date
     expiry_date: date | None = None
     condition_text: str | None = None
@@ -185,6 +214,31 @@ class QuotationConfirmOrdersRequest(CamelModel):
 
 
 # ------------------------------------------------------------
+# 伝票明細の修正（編集）用共通スキーマ
+# 既存明細の productId/quantity/unitPrice、または amount のみを更新できる。
+# 明細の追加・削除には対応していない（id で既存明細を指定する）。
+# ------------------------------------------------------------
+class ProductLinePatch(CamelModel):
+    id: int
+    product_id: int | None = None
+    quantity: Decimal | None = None
+    unit_price: Decimal | None = None
+
+
+class AmountLinePatch(CamelModel):
+    id: int
+    amount: Decimal | None = None
+
+
+class QuotationPatch(CamelModel):
+    partner_id: int | None = None
+    quotation_date: date | None = None
+    expiry_date: date | None = None
+    condition_text: str | None = None
+    lines: list[ProductLinePatch] | None = None
+
+
+# ------------------------------------------------------------
 # 受注
 # ------------------------------------------------------------
 class OrderLineIn(CamelModel):
@@ -199,6 +253,8 @@ class OrderLineOut(OrderLineIn):
     order_id: int
     line_no: int
     amount: Decimal
+    product_code: str | None = None
+    product_name: str | None = None
 
 
 class OrderLineWithRemainingOut(OrderLineOut):
@@ -218,12 +274,21 @@ class OrderOut(CamelModel):
     id: int
     order_no: str
     partner_id: int
+    partner_code: str | None = None
+    partner_name: str | None = None
     order_date: date
     status: DocumentStatus
 
 
 class OrderDetailOut(OrderOut):
     lines: list[OrderLineOut]
+
+
+class OrderPatch(CamelModel):
+    partner_id: int | None = None
+    order_date: date | None = None
+    status: DocumentStatus | None = None
+    lines: list[ProductLinePatch] | None = None
 
 
 # ------------------------------------------------------------
@@ -241,6 +306,8 @@ class PurchaseOrderLineOut(PurchaseOrderLineIn):
     purchase_order_id: int
     line_no: int
     amount: Decimal
+    product_code: str | None = None
+    product_name: str | None = None
 
 
 class PurchaseOrderLineWithRemainingOut(PurchaseOrderLineOut):
@@ -258,12 +325,21 @@ class PurchaseOrderOut(CamelModel):
     id: int
     purchase_order_no: str
     partner_id: int
+    partner_code: str | None = None
+    partner_name: str | None = None
     order_date: date
     status: DocumentStatus
 
 
 class PurchaseOrderDetailOut(PurchaseOrderOut):
     lines: list[PurchaseOrderLineOut]
+
+
+class PurchaseOrderPatch(CamelModel):
+    partner_id: int | None = None
+    order_date: date | None = None
+    status: DocumentStatus | None = None
+    lines: list[ProductLinePatch] | None = None
 
 
 # ------------------------------------------------------------
@@ -281,6 +357,8 @@ class PurchaseLineOut(PurchaseLineIn):
     purchase_id: int
     line_no: int
     amount: Decimal
+    product_code: str | None = None
+    product_name: str | None = None
 
 
 class PurchaseIn(CamelModel):
@@ -293,12 +371,21 @@ class PurchaseOut(CamelModel):
     id: int
     purchase_no: str
     partner_id: int
+    partner_code: str | None = None
+    partner_name: str | None = None
     purchase_date: date
     status: DocumentStatus
 
 
 class PurchaseDetailOut(PurchaseOut):
     lines: list[PurchaseLineOut]
+
+
+class PurchasePatch(CamelModel):
+    partner_id: int | None = None
+    purchase_date: date | None = None
+    status: DocumentStatus | None = None
+    lines: list[ProductLinePatch] | None = None
 
 
 # ------------------------------------------------------------
@@ -316,6 +403,8 @@ class SalesLineOut(SalesLineIn):
     sales_id: int
     line_no: int
     amount: Decimal
+    product_code: str | None = None
+    product_name: str | None = None
 
 
 class SalesIn(CamelModel):
@@ -328,12 +417,21 @@ class SalesOut(CamelModel):
     id: int
     sales_no: str
     partner_id: int
+    partner_code: str | None = None
+    partner_name: str | None = None
     sales_date: date
     status: DocumentStatus
 
 
 class SalesDetailOut(SalesOut):
     lines: list[SalesLineOut]
+
+
+class SalesPatch(CamelModel):
+    partner_id: int | None = None
+    sales_date: date | None = None
+    status: DocumentStatus | None = None
+    lines: list[ProductLinePatch] | None = None
 
 
 # ------------------------------------------------------------
@@ -361,6 +459,8 @@ class ReceiptOut(CamelModel):
     id: int
     receipt_no: str
     partner_id: int
+    partner_code: str | None = None
+    partner_name: str | None = None
     receipt_date: date
     payment_method: str | None = None
     status: DocumentStatus
@@ -368,6 +468,14 @@ class ReceiptOut(CamelModel):
 
 class ReceiptDetailOut(ReceiptOut):
     lines: list[ReceiptLineOut]
+
+
+class ReceiptPatch(CamelModel):
+    partner_id: int | None = None
+    receipt_date: date | None = None
+    payment_method: str | None = None
+    status: DocumentStatus | None = None
+    lines: list[AmountLinePatch] | None = None
 
 
 # ------------------------------------------------------------
@@ -395,6 +503,8 @@ class PaymentOut(CamelModel):
     id: int
     payment_no: str
     partner_id: int
+    partner_code: str | None = None
+    partner_name: str | None = None
     payment_date: date
     payment_method: str | None = None
     status: DocumentStatus
@@ -404,12 +514,24 @@ class PaymentDetailOut(PaymentOut):
     lines: list[PaymentLineOut]
 
 
+class PaymentPatch(CamelModel):
+    partner_id: int | None = None
+    payment_date: date | None = None
+    payment_method: str | None = None
+    status: DocumentStatus | None = None
+    lines: list[AmountLinePatch] | None = None
+
+
 # ------------------------------------------------------------
 # 在庫
 # ------------------------------------------------------------
 class InventoryStockOut(CamelModel):
     product_id: int
+    product_code: str | None = None
+    product_name: str | None = None
     warehouse_id: int
+    warehouse_code: str | None = None
+    warehouse_name: str | None = None
     quantity_on_hand: Decimal
 
 
@@ -425,3 +547,7 @@ class InventoryAllocationIn(CamelModel):
 
 class InventoryAllocationOut(InventoryAllocationIn):
     id: int
+    product_code: str | None = None
+    product_name: str | None = None
+    warehouse_code: str | None = None
+    warehouse_name: str | None = None

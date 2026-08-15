@@ -10,13 +10,81 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any, Generic, TypeVar
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from . import models
 
 HeaderT = TypeVar("HeaderT")
 LineT = TypeVar("LineT")
+
+
+# ------------------------------------------------------------
+# コード自動採番
+# ------------------------------------------------------------
+def next_sequential_code(db: Session, model: type, code_column) -> str:
+    """空欄で登録された場合のコード自動採番。
+
+    「純粋な6桁数字」のコードだけを対象に最大値を求め+1する
+    （手入力の任意コードと衝突しないようにするため）。
+    """
+    codes = db.execute(select(code_column).where(code_column.op("~")("^[0-9]{6}$"))).scalars().all()
+    numbers = [int(c) for c in codes]
+    next_n = (max(numbers) + 1) if numbers else 1
+    return f"{next_n:06d}"
+
+
+# ------------------------------------------------------------
+# 表示名解決（取引先コード/名称・商品コード/名称・倉庫コード/名称）
+# ------------------------------------------------------------
+def _partner_lookup(db: Session, ids: set[int]) -> dict[int, models.Partner]:
+    ids = {i for i in ids if i is not None}
+    if not ids:
+        return {}
+    rows = db.execute(
+        select(models.Partner).options(selectinload(models.Partner.details)).where(models.Partner.id.in_(ids))
+    ).scalars().all()
+    return {p.id: p for p in rows}
+
+
+def _product_lookup(db: Session, ids: set[int]) -> dict[int, models.Product]:
+    ids = {i for i in ids if i is not None}
+    if not ids:
+        return {}
+    rows = db.execute(select(models.Product).where(models.Product.id.in_(ids))).scalars().all()
+    return {p.id: p for p in rows}
+
+
+def _warehouse_lookup(db: Session, ids: set[int]) -> dict[int, models.Warehouse]:
+    ids = {i for i in ids if i is not None}
+    if not ids:
+        return {}
+    rows = db.execute(select(models.Warehouse).where(models.Warehouse.id.in_(ids))).scalars().all()
+    return {w.id: w for w in rows}
+
+
+def attach_partner_names(db: Session, objs: list[Any]) -> None:
+    partners = _partner_lookup(db, {o.partner_id for o in objs if getattr(o, "partner_id", None)})
+    for o in objs:
+        p = partners.get(getattr(o, "partner_id", None))
+        o.partner_code = p.partner_code if p else None  # type: ignore[attr-defined]
+        o.partner_name = (p.current_detail.name if p and p.current_detail else None)  # type: ignore[attr-defined]
+
+
+def attach_product_names(db: Session, objs: list[Any]) -> None:
+    products = _product_lookup(db, {o.product_id for o in objs if getattr(o, "product_id", None)})
+    for o in objs:
+        p = products.get(getattr(o, "product_id", None))
+        o.product_code = p.product_code if p else None  # type: ignore[attr-defined]
+        o.product_name = p.name if p else None  # type: ignore[attr-defined]
+
+
+def attach_warehouse_names(db: Session, objs: list[Any]) -> None:
+    warehouses = _warehouse_lookup(db, {o.warehouse_id for o in objs if getattr(o, "warehouse_id", None)})
+    for o in objs:
+        w = warehouses.get(getattr(o, "warehouse_id", None))
+        o.warehouse_code = w.warehouse_code if w else None  # type: ignore[attr-defined]
+        o.warehouse_name = w.name if w else None  # type: ignore[attr-defined]
 
 
 # ------------------------------------------------------------
@@ -47,9 +115,10 @@ def get_partner(db: Session, partner_id: int) -> models.Partner | None:
 
 
 def create_partner(
-    db: Session, *, partner_code: str, partner_type: str, detail: dict[str, Any], created_by: int | None
+    db: Session, *, partner_code: str | None, partner_type: str, detail: dict[str, Any], created_by: int | None
 ) -> models.Partner:
-    partner = models.Partner(partner_code=partner_code, partner_type=partner_type, created_by=created_by)
+    code = partner_code or next_sequential_code(db, models.Partner, models.Partner.partner_code)
+    partner = models.Partner(partner_code=code, partner_type=partner_type, created_by=created_by)
     db.add(partner)
     db.flush()
     db.add(models.PartnerDetail(partner_id=partner.id, created_by=created_by, **detail))
@@ -134,6 +203,9 @@ def get_product(db: Session, product_id: int) -> models.Product | None:
 
 
 def create_product(db: Session, data: dict[str, Any]) -> models.Product:
+    data = dict(data)
+    if not data.get("product_code"):
+        data["product_code"] = next_sequential_code(db, models.Product, models.Product.product_code)
     product = models.Product(**data)
     db.add(product)
     db.commit()
@@ -142,6 +214,9 @@ def create_product(db: Session, data: dict[str, Any]) -> models.Product:
 
 
 def update_product(db: Session, product: models.Product, data: dict[str, Any]) -> models.Product:
+    data = dict(data)
+    if not data.get("product_code"):
+        data.pop("product_code", None)  # 空欄なら既存コードを維持する
     for key, value in data.items():
         setattr(product, key, value)
     db.commit()
@@ -156,6 +231,8 @@ def list_price_master(
     partner_id: int | None = None,
     product_id: int | None = None,
     as_of: date | None = None,
+    limit: int = 200,
+    offset: int = 0,
 ) -> list[models.PriceMaster]:
     stmt = select(models.PriceMaster)
     if price_type is not None:
@@ -168,8 +245,20 @@ def list_price_master(
         stmt = stmt.where(models.PriceMaster.effective_start_date <= as_of).where(
             (models.PriceMaster.effective_end_date.is_(None)) | (models.PriceMaster.effective_end_date >= as_of)
         )
-    stmt = stmt.order_by(models.PriceMaster.effective_start_date.desc())
-    return list(db.execute(stmt).scalars().all())
+    stmt = stmt.order_by(models.PriceMaster.id.desc()).offset(offset).limit(limit)
+    rows = list(db.execute(stmt).scalars().all())
+    attach_partner_names(db, rows)
+    attach_product_names(db, rows)
+    return rows
+
+
+def get_price_master(db: Session, price_id: int) -> models.PriceMaster | None:
+    row = db.get(models.PriceMaster, price_id)
+    if row is None:
+        return None
+    attach_partner_names(db, [row])
+    attach_product_names(db, [row])
+    return row
 
 
 def create_price_master(db: Session, data: dict[str, Any]) -> models.PriceMaster:
@@ -177,7 +266,19 @@ def create_price_master(db: Session, data: dict[str, Any]) -> models.PriceMaster
     db.add(row)
     db.commit()
     db.refresh(row)
-    return row
+    return get_price_master(db, row.id)  # type: ignore[return-value]
+
+
+def update_price_master(db: Session, row: models.PriceMaster, data: dict[str, Any]) -> models.PriceMaster:
+    for key, value in data.items():
+        setattr(row, key, value)
+    db.commit()
+    db.refresh(row)
+    return get_price_master(db, row.id)  # type: ignore[return-value]
+
+
+def list_warehouses(db: Session) -> list[models.Warehouse]:
+    return list(db.execute(select(models.Warehouse).order_by(models.Warehouse.id)).scalars().all())
 
 
 # ------------------------------------------------------------
@@ -191,13 +292,40 @@ class DocumentCRUD(Generic[HeaderT, LineT]):
     no_field: str  # 例: "quotation_no"
     no_prefix: str  # 採番プレフィックス。例: "Q"
     lines_relationship: str  # 例: "lines"
+    date_field: str  # 例: "quotation_date"
+    status_field: str  # 例: "status" or "approval_status"
+    lines_have_qty: bool = True  # False の場合は明細が金額のみ（入金/支払）
 
-    def list(self, db: Session, *, partner_id: int | None = None, limit: int = 50, offset: int = 0) -> list[HeaderT]:
+    def list(
+        self,
+        db: Session,
+        *,
+        partner_id: int | None = None,
+        keyword: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        status: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[HeaderT]:
         stmt = select(self.header_model)
         if partner_id is not None:
             stmt = stmt.where(self.header_model.partner_id == partner_id)  # type: ignore[attr-defined]
+        if keyword:
+            no_col = getattr(self.header_model, self.no_field)
+            stmt = stmt.where(no_col.ilike(f"%{keyword}%"))
+        date_col = getattr(self.header_model, self.date_field)
+        if date_from is not None:
+            stmt = stmt.where(date_col >= date_from)
+        if date_to is not None:
+            stmt = stmt.where(date_col <= date_to)
+        if status:
+            status_col = getattr(self.header_model, self.status_field)
+            stmt = stmt.where(status_col == status)
         stmt = stmt.order_by(self.header_model.id.desc()).offset(offset).limit(limit)  # type: ignore[attr-defined]
-        return list(db.execute(stmt).scalars().all())
+        items = list(db.execute(stmt).scalars().all())
+        attach_partner_names(db, items)
+        return items
 
     def get(self, db: Session, document_id: int) -> HeaderT | None:
         stmt = (
@@ -205,7 +333,14 @@ class DocumentCRUD(Generic[HeaderT, LineT]):
             .options(selectinload(getattr(self.header_model, self.lines_relationship)))
             .where(self.header_model.id == document_id)  # type: ignore[attr-defined]
         )
-        return db.execute(stmt).scalar_one_or_none()
+        obj = db.execute(stmt).scalar_one_or_none()
+        if obj is None:
+            return None
+        attach_partner_names(db, [obj])
+        lines = getattr(obj, self.lines_relationship)
+        if self.lines_have_qty:
+            attach_product_names(db, lines)
+        return obj
 
     def create(self, db: Session, header_data: dict[str, Any], lines_data: list[dict[str, Any]], created_by: int | None) -> HeaderT:
         doc_no = self._next_no(db)
@@ -220,37 +355,68 @@ class DocumentCRUD(Generic[HeaderT, LineT]):
         db.commit()
         return self.get(db, header.id)  # type: ignore[attr-defined,arg-type]
 
+    def update(
+        self, db: Session, document_id: int, header_data: dict[str, Any], lines_data: list[dict[str, Any]] | None
+    ) -> HeaderT | None:
+        header = db.get(self.header_model, document_id)
+        if header is None:
+            return None
+        for key, value in header_data.items():
+            setattr(header, key, value)
+
+        if lines_data:
+            existing_lines = {line.id: line for line in getattr(header, self.lines_relationship)}
+            for line_patch in lines_data:
+                line_patch = dict(line_patch)
+                line_id = line_patch.pop("id")
+                line = existing_lines.get(line_id)
+                if line is None:
+                    raise ValueError(f"line {line_id} does not belong to this document")
+                for key, value in line_patch.items():
+                    setattr(line, key, value)
+                if self.lines_have_qty and ("quantity" in line_patch or "unit_price" in line_patch):
+                    line.amount = line.quantity * line.unit_price
+
+        db.commit()
+        return self.get(db, document_id)
+
     def _next_no(self, db: Session) -> str:
-        # 簡易な連番採番。本番運用では専用の採番テーブル or DBシーケンス + アドバイザリロックで
-        # 同時実行時の重複を防ぐこと（現状は同時作成でのレース条件がある）。
-        count = db.execute(select(func.count()).select_from(self.header_model)).scalar_one()
-        return f"{self.no_prefix}{count + 1:06d}"
-
-
-def line_amount(quantity: Any, unit_price: Any) -> Any:
-    return quantity * unit_price
+        # 純粋な連番採番の商品/取引先コードと同様に、既存の伝票番号の最大値+1を使う。
+        no_col = getattr(self.header_model, self.no_field)
+        pattern = f"^{self.no_prefix}[0-9]{{6}}$"
+        codes = db.execute(select(no_col).where(no_col.op("~")(pattern))).scalars().all()
+        numbers = [int(c[len(self.no_prefix):]) for c in codes]
+        next_n = (max(numbers) + 1) if numbers else 1
+        return f"{self.no_prefix}{next_n:06d}"
 
 
 quotation_crud: DocumentCRUD[models.Quotation, models.QuotationLine] = DocumentCRUD(
-    models.Quotation, models.QuotationLine, "quotation_id", "quotation_no", "Q", "lines"
+    models.Quotation, models.QuotationLine, "quotation_id", "quotation_no", "Q", "lines",
+    date_field="quotation_date", status_field="approval_status",
 )
 order_crud: DocumentCRUD[models.Order, models.OrderLine] = DocumentCRUD(
-    models.Order, models.OrderLine, "order_id", "order_no", "SO", "lines"
+    models.Order, models.OrderLine, "order_id", "order_no", "SO", "lines",
+    date_field="order_date", status_field="status",
 )
 purchase_order_crud: DocumentCRUD[models.PurchaseOrder, models.PurchaseOrderLine] = DocumentCRUD(
-    models.PurchaseOrder, models.PurchaseOrderLine, "purchase_order_id", "purchase_order_no", "PO", "lines"
+    models.PurchaseOrder, models.PurchaseOrderLine, "purchase_order_id", "purchase_order_no", "PO", "lines",
+    date_field="order_date", status_field="status",
 )
 purchase_crud: DocumentCRUD[models.Purchase, models.PurchaseLine] = DocumentCRUD(
-    models.Purchase, models.PurchaseLine, "purchase_id", "purchase_no", "PU", "lines"
+    models.Purchase, models.PurchaseLine, "purchase_id", "purchase_no", "PU", "lines",
+    date_field="purchase_date", status_field="status",
 )
 sales_crud: DocumentCRUD[models.Sales, models.SalesLine] = DocumentCRUD(
-    models.Sales, models.SalesLine, "sales_id", "sales_no", "SA", "lines"
+    models.Sales, models.SalesLine, "sales_id", "sales_no", "SA", "lines",
+    date_field="sales_date", status_field="status",
 )
 receipt_crud: DocumentCRUD[models.Receipt, models.ReceiptLine] = DocumentCRUD(
-    models.Receipt, models.ReceiptLine, "receipt_id", "receipt_no", "RC", "lines"
+    models.Receipt, models.ReceiptLine, "receipt_id", "receipt_no", "RC", "lines",
+    date_field="receipt_date", status_field="status", lines_have_qty=False,
 )
 payment_crud: DocumentCRUD[models.Payment, models.PaymentLine] = DocumentCRUD(
-    models.Payment, models.PaymentLine, "payment_id", "payment_no", "PM", "lines"
+    models.Payment, models.PaymentLine, "payment_id", "payment_no", "PM", "lines",
+    date_field="payment_date", status_field="status", lines_have_qty=False,
 )
 
 
@@ -261,6 +427,7 @@ def quotation_lines_with_remaining(db: Session, quotation_id: int) -> list[dict]
     lines = db.execute(
         select(models.QuotationLine).where(models.QuotationLine.quotation_id == quotation_id).order_by(models.QuotationLine.line_no)
     ).scalars().all()
+    attach_product_names(db, lines)
     remaining = {
         r.quotation_line_id: r
         for r in db.execute(
@@ -273,6 +440,8 @@ def quotation_lines_with_remaining(db: Session, quotation_id: int) -> list[dict]
         out.append(
             {
                 **_row_to_dict(line),
+                "product_code": line.product_code,  # type: ignore[attr-defined]
+                "product_name": line.product_name,  # type: ignore[attr-defined]
                 "ordered_qty": r.ordered_qty if r else 0,
                 "remaining_qty": r.remaining_qty if r else line.quantity,
             }
@@ -284,6 +453,7 @@ def order_lines_with_remaining(db: Session, order_id: int) -> list[dict]:
     lines = db.execute(
         select(models.OrderLine).where(models.OrderLine.order_id == order_id).order_by(models.OrderLine.line_no)
     ).scalars().all()
+    attach_product_names(db, lines)
     purchase_remaining = {
         r.order_line_id: r
         for r in db.execute(
@@ -303,6 +473,8 @@ def order_lines_with_remaining(db: Session, order_id: int) -> list[dict]:
         out.append(
             {
                 **_row_to_dict(line),
+                "product_code": line.product_code,  # type: ignore[attr-defined]
+                "product_name": line.product_name,  # type: ignore[attr-defined]
                 "purchase_ordered_qty": pr.purchase_ordered_qty if pr else 0,
                 "remaining_qty_for_purchase": pr.remaining_qty if pr else line.quantity,
                 "sold_qty": sr.sold_qty if sr else 0,
@@ -318,6 +490,7 @@ def purchase_order_lines_with_remaining(db: Session, purchase_order_id: int) -> 
         .where(models.PurchaseOrderLine.purchase_order_id == purchase_order_id)
         .order_by(models.PurchaseOrderLine.line_no)
     ).scalars().all()
+    attach_product_names(db, lines)
     remaining = {
         r.purchase_order_line_id: r
         for r in db.execute(
@@ -332,6 +505,8 @@ def purchase_order_lines_with_remaining(db: Session, purchase_order_id: int) -> 
         out.append(
             {
                 **_row_to_dict(line),
+                "product_code": line.product_code,  # type: ignore[attr-defined]
+                "product_name": line.product_name,  # type: ignore[attr-defined]
                 "purchased_qty": r.purchased_qty if r else 0,
                 "remaining_qty": r.remaining_qty if r else line.quantity,
             }

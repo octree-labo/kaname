@@ -21,23 +21,31 @@ export default function PartnersPage() {
   );
 
   const columns: Column<PartnerWithCurrentDetailOut>[] = [
-    { key: "partnerCode", label: "取引先コード" },
+    { key: "partnerCode", label: "取引先コード", sortable: true },
     {
       key: "name",
       label: "会社名",
+      sortable: true,
+      sortValue: (row) => row.currentDetail?.name ?? "",
       render: (row) => row.currentDetail?.name ?? "(未設定)",
     },
-    { key: "partnerType", label: "区分", render: (row) => PARTNER_TYPE_LABEL[row.partnerType] },
+    {
+      key: "partnerType",
+      label: "区分",
+      sortable: true,
+      render: (row) => PARTNER_TYPE_LABEL[row.partnerType],
+    },
     {
       key: "isActive",
       label: "状態",
+      sortable: true,
       render: (row) => (row.isActive ? "有効" : "無効"),
     },
   ];
 
   return (
-    <div>
-      <div className="flex items-center justify-between">
+    <div className="flex h-full flex-col">
+      <div className="flex shrink-0 items-center justify-between">
         <h1 className="text-xl font-semibold text-slate-900">取引先</h1>
         <Link
           href="/partners/new"
@@ -52,15 +60,11 @@ export default function PartnersPage() {
         placeholder="会社名・コードで検索"
         value={keyword}
         onChange={(e) => setKeyword(e.target.value)}
-        className="mt-4 w-72"
+        className="mt-4 w-72 shrink-0"
       />
 
-      <div className="mt-4">
-        <DataTable
-          columns={columns}
-          rows={data ?? []}
-          rowHref={(row) => `/partners/${row.id}`}
-        />
+      <div className="mt-4 min-h-0 flex-1">
+        <DataTable columns={columns} rows={data ?? []} rowHref={(row) => `/partners/${row.id}`} />
       </div>
     </div>
   );
