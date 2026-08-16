@@ -5,8 +5,10 @@ import useSWR from "swr";
 import { api, ApiError, fetcher } from "@/lib/api";
 import type { ProductOut } from "@/lib/types";
 import { DataTable, type Column } from "@/components/DataTable";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 
 export default function ProductsPage() {
+  const { canWrite } = useCurrentUser();
   const [keyword, setKeyword] = useState("");
   const { data, mutate } = useSWR<ProductOut[]>(
     `/api/products${keyword ? `?keyword=${encodeURIComponent(keyword)}` : ""}`,
@@ -50,30 +52,36 @@ export default function ProductsPage() {
     { key: "category", label: "分類", sortable: true, render: (r) => r.category ?? "-" },
     { key: "unit", label: "単位", sortable: true },
     { key: "isActive", label: "状態", sortable: true, render: (r) => (r.isActive ? "有効" : "無効") },
-    {
-      key: "edit",
-      label: "",
-      render: (r) => (
-        <a href={`/products/${r.id}/edit`} className="text-slate-700 hover:underline">
-          編集
-        </a>
-      ),
-    },
+    ...(canWrite
+      ? [
+          {
+            key: "edit",
+            label: "",
+            render: (r: ProductOut) => (
+              <a href={`/products/${r.id}/edit`} className="text-slate-700 hover:underline">
+                編集
+              </a>
+            ),
+          } satisfies Column<ProductOut>,
+        ]
+      : []),
   ];
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex shrink-0 items-center justify-between">
         <h1 className="text-xl font-semibold text-slate-900">商品</h1>
-        <button
-          onClick={() => setShowForm((v) => !v)}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-        >
-          {showForm ? "閉じる" : "新規登録"}
-        </button>
+        {canWrite && (
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+          >
+            {showForm ? "閉じる" : "新規登録"}
+          </button>
+        )}
       </div>
 
-      {showForm && (
+      {canWrite && showForm && (
         <form
           onSubmit={handleSubmit}
           className="mt-4 grid shrink-0 max-w-2xl grid-cols-2 gap-3 rounded-lg border border-slate-200 bg-white p-4"

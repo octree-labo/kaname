@@ -6,10 +6,12 @@ import useSWR from "swr";
 import { api, ApiError, fetcher } from "@/lib/api";
 import type { ProductOut } from "@/lib/types";
 import { PartnerPicker } from "@/components/PartnerPicker";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 
 export default function EditProductPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const { isGuest } = useCurrentUser();
   const { data } = useSWR<ProductOut>(`/api/products/${params.id}`, fetcher);
 
   const [productCode, setProductCode] = useState("");
@@ -34,6 +36,17 @@ export default function EditProductPage() {
   }, [data]);
 
   if (!data) return <p className="text-sm text-slate-600">読み込み中...</p>;
+
+  if (isGuest) {
+    return (
+      <div className="max-w-xl">
+        <h1 className="text-xl font-semibold text-slate-900">商品 編集</h1>
+        <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          ゲストは閲覧のみで、編集はできません。
+        </p>
+      </div>
+    );
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

@@ -65,6 +65,18 @@ export default function LoginPage() {
           🆕 アカウント申請
         </a>
 
+        <div className="mt-4 border-t border-slate-200 pt-4">
+          <a
+            href={`${API_BASE_URL}/auth/guest`}
+            className="flex w-full items-center justify-center gap-2 rounded-md border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100"
+          >
+            👀 ゲストとして閲覧（読み取り専用）
+          </a>
+          <p className="mt-1.5 text-xs text-slate-500">
+            ログインなしで全データを閲覧できます。新規作成・編集はできません。
+          </p>
+        </div>
+
         <Suspense fallback={null}>
           <LoginNotice />
         </Suspense>

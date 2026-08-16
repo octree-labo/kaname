@@ -31,12 +31,15 @@ oauth.register(
 )
 
 
+GUEST_ROLE = "guest"
+
+
 @dataclass
 class SessionUser:
-    id: int
-    email: str
+    id: int | None
+    email: str | None
     name: str | None
-    role: models.UserRole
+    role: str
 
 
 def is_owner_bootstrap_email(email: str) -> bool:
@@ -117,3 +120,20 @@ def get_current_owner(user: SessionUser = Depends(get_current_user)) -> SessionU
     if user.role != models.UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="owner only")
     return user
+
+
+def get_viewer(request: Request, db: Session = Depends(get_db)) -> SessionUser:
+    """閲覧用の依存関係。ログイン済みユーザーに加え、ゲスト（表示専用）も許可する。
+
+    書き込み系エンドポイントは引き続き get_current_user / get_current_owner を使うこと。
+    """
+    email = request.session.get("user_email")
+    if email:
+        user = get_user_by_email(db, email)
+        if user is not None and user.status == models.UserStatus.approved:
+            return SessionUser(id=user.id, email=user.email, name=user.name, role=user.role)
+
+    if request.session.get("guest"):
+        return SessionUser(id=None, email=None, name="ゲスト", role=GUEST_ROLE)
+
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="authentication required")

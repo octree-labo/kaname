@@ -8,6 +8,7 @@ import type { QuotationDetailOut } from "@/lib/types";
 import { PartnerPicker } from "@/components/PartnerPicker";
 import { ProductLineFields } from "@/components/ProductLineFields";
 import { buildProductLinePayload, type ProductLineValue } from "@/lib/lineHelpers";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 
 interface LineEdit extends ProductLineValue {
   id: number;
@@ -16,6 +17,7 @@ interface LineEdit extends ProductLineValue {
 export default function EditQuotationPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const { isGuest } = useCurrentUser();
   const { data } = useSWR<QuotationDetailOut>(`/api/quotations/${params.id}`, fetcher);
 
   const [partnerId, setPartnerId] = useState("");
@@ -46,6 +48,17 @@ export default function EditQuotationPage() {
   }, [data]);
 
   if (!data) return <p className="text-sm text-slate-600">読み込み中...</p>;
+
+  if (isGuest) {
+    return (
+      <div className="max-w-2xl">
+        <h1 className="text-xl font-semibold text-slate-900">見積 編集</h1>
+        <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          ゲストは閲覧のみで、編集はできません。
+        </p>
+      </div>
+    );
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

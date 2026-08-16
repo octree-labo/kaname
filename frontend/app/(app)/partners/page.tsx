@@ -6,6 +6,7 @@ import Link from "next/link";
 import { fetcher } from "@/lib/api";
 import type { PartnerWithCurrentDetailOut } from "@/lib/types";
 import { DataTable, type Column } from "@/components/DataTable";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 
 const PARTNER_TYPE_LABEL: Record<string, string> = {
   customer: "得意先",
@@ -14,6 +15,7 @@ const PARTNER_TYPE_LABEL: Record<string, string> = {
 };
 
 export default function PartnersPage() {
+  const { canWrite } = useCurrentUser();
   const [keyword, setKeyword] = useState("");
   const { data } = useSWR<PartnerWithCurrentDetailOut[]>(
     `/api/partners${keyword ? `?keyword=${encodeURIComponent(keyword)}` : ""}`,
@@ -47,12 +49,14 @@ export default function PartnersPage() {
     <div className="flex h-full flex-col">
       <div className="flex shrink-0 items-center justify-between">
         <h1 className="text-xl font-semibold text-slate-900">取引先</h1>
-        <Link
-          href="/partners/new"
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-        >
-          新規登録
-        </Link>
+        {canWrite && (
+          <Link
+            href="/partners/new"
+            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+          >
+            新規登録
+          </Link>
+        )}
       </div>
 
       <input

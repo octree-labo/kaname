@@ -8,6 +8,7 @@ import type { DocumentModuleConfig } from "@/lib/documentModules";
 import { PartnerPicker } from "@/components/PartnerPicker";
 import { ProductLineFields } from "@/components/ProductLineFields";
 import { buildProductLinePayload, type ProductLineValue } from "@/lib/lineHelpers";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 
 interface DocLine {
   id: number;
@@ -37,6 +38,7 @@ interface AmountLineEdit {
 export function DocumentEditPage({ config }: { config: DocumentModuleConfig }) {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const { isGuest } = useCurrentUser();
   const { data } = useSWR<DocDetail>(`${config.apiPath}/${params.id}`, fetcher);
 
   const [partnerId, setPartnerId] = useState("");
@@ -72,6 +74,17 @@ export function DocumentEditPage({ config }: { config: DocumentModuleConfig }) {
   }, [data]);
 
   if (!data) return <p className="text-sm text-slate-600">読み込み中...</p>;
+
+  if (isGuest) {
+    return (
+      <div className="max-w-2xl">
+        <h1 className="text-xl font-semibold text-slate-900">{config.label} 編集</h1>
+        <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          ゲストは閲覧のみで、編集はできません。
+        </p>
+      </div>
+    );
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

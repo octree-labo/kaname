@@ -2,9 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import useSWR from "swr";
-import { fetcher } from "@/lib/api";
-import type { CurrentUser } from "@/lib/types";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 
 const NAV_GROUPS: { label: string; items: { href: string; label: string }[] }[] = [
   {
@@ -35,7 +33,7 @@ const NAV_GROUPS: { label: string; items: { href: string; label: string }[] }[] 
 
 export function Nav() {
   const pathname = usePathname();
-  const { data: user } = useSWR<CurrentUser>("/auth/me", fetcher, { shouldRetryOnError: false });
+  const { user } = useCurrentUser();
 
   const groups = [...NAV_GROUPS];
   if (user?.role === "owner") {

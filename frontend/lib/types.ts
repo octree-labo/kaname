@@ -12,6 +12,8 @@ export type DocumentStatus = "draft" | "confirmed" | "cancelled";
 export type PriceType = "sales" | "purchase";
 export type AllocationStage = "quotation" | "order" | "sales";
 export type UserRole = "owner" | "member";
+/** guest はDB非管理の閲覧専用ロール（/auth/guest で無認証入室） */
+export type Viewer = UserRole | "guest";
 export type UserStatus = "pending" | "approved" | "rejected";
 /** 金額端数処理区分: floor=切り捨て / ceil=切り上げ / round=四捨五入 */
 export type RoundingType = "floor" | "ceil" | "round";
@@ -321,9 +323,9 @@ export interface InventoryAllocationOut {
 }
 
 export interface CurrentUser {
-  email: string;
+  email: string | null;
   name: string | null;
-  role: UserRole;
+  role: Viewer;
 }
 
 export interface AdminUserOut {

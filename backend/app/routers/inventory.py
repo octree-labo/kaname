@@ -6,9 +6,9 @@ from sqlalchemy.orm import Session
 
 from .. import crud, models, schemas
 from ..database import get_db
-from ..security import get_current_user
+from ..security import get_current_user, get_viewer
 
-router = APIRouter(prefix="/inventory", tags=["在庫"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/inventory", tags=["在庫"], dependencies=[Depends(get_viewer)])
 
 
 @router.get("/stocks", response_model=list[schemas.InventoryStockOut])
@@ -55,7 +55,7 @@ def list_allocations(
     return rows
 
 
-@router.post("/allocations", response_model=schemas.InventoryAllocationOut, status_code=201)
+@router.post("/allocations", response_model=schemas.InventoryAllocationOut, status_code=201, dependencies=[Depends(get_current_user)])
 def create_allocation(payload: schemas.InventoryAllocationIn, db: Session = Depends(get_db)):
     row = models.InventoryAllocation(**payload.model_dump())
     db.add(row)

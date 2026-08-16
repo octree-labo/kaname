@@ -20,9 +20,9 @@ from sqlalchemy.orm import Session
 from .. import crud, models, schemas
 from ..database import get_db
 from ..pdf import render_quotation_pdf
-from ..security import SessionUser, get_current_user
+from ..security import SessionUser, get_current_user, get_viewer
 
-router = APIRouter(dependencies=[Depends(get_current_user)])
+router = APIRouter(dependencies=[Depends(get_viewer)])
 
 
 def _lines(lines: list[Any]) -> list[dict]:
@@ -72,7 +72,7 @@ def get_quotation(quotation_id: int, db: Session = Depends(get_db)):
     return obj
 
 
-@router.patch("/quotations/{quotation_id}", response_model=schemas.QuotationDetailOut, tags=["見積"])
+@router.patch("/quotations/{quotation_id}", response_model=schemas.QuotationDetailOut, tags=["見積"], dependencies=[Depends(get_current_user)])
 def update_quotation(quotation_id: int, payload: schemas.QuotationPatch, db: Session = Depends(get_db)):
     header_data = payload.model_dump(exclude_unset=True, exclude={"lines"})
     try:
@@ -194,7 +194,7 @@ def get_order(order_id: int, db: Session = Depends(get_db)):
     return obj
 
 
-@router.patch("/orders/{order_id}", response_model=schemas.OrderDetailOut, tags=["受注"])
+@router.patch("/orders/{order_id}", response_model=schemas.OrderDetailOut, tags=["受注"], dependencies=[Depends(get_current_user)])
 def update_order(order_id: int, payload: schemas.OrderPatch, db: Session = Depends(get_db)):
     header_data = payload.model_dump(exclude_unset=True, exclude={"lines"})
     try:
@@ -250,7 +250,7 @@ def get_purchase_order(purchase_order_id: int, db: Session = Depends(get_db)):
     return obj
 
 
-@router.patch("/purchase-orders/{purchase_order_id}", response_model=schemas.PurchaseOrderDetailOut, tags=["発注"])
+@router.patch("/purchase-orders/{purchase_order_id}", response_model=schemas.PurchaseOrderDetailOut, tags=["発注"], dependencies=[Depends(get_current_user)])
 def update_purchase_order(purchase_order_id: int, payload: schemas.PurchaseOrderPatch, db: Session = Depends(get_db)):
     header_data = payload.model_dump(exclude_unset=True, exclude={"lines"})
     try:
@@ -310,7 +310,7 @@ def get_purchase(purchase_id: int, db: Session = Depends(get_db)):
     return obj
 
 
-@router.patch("/purchases/{purchase_id}", response_model=schemas.PurchaseDetailOut, tags=["仕入"])
+@router.patch("/purchases/{purchase_id}", response_model=schemas.PurchaseDetailOut, tags=["仕入"], dependencies=[Depends(get_current_user)])
 def update_purchase(purchase_id: int, payload: schemas.PurchasePatch, db: Session = Depends(get_db)):
     header_data = payload.model_dump(exclude_unset=True, exclude={"lines"})
     try:
@@ -359,7 +359,7 @@ def get_sales(sales_id: int, db: Session = Depends(get_db)):
     return obj
 
 
-@router.patch("/sales/{sales_id}", response_model=schemas.SalesDetailOut, tags=["売上"])
+@router.patch("/sales/{sales_id}", response_model=schemas.SalesDetailOut, tags=["売上"], dependencies=[Depends(get_current_user)])
 def update_sales(sales_id: int, payload: schemas.SalesPatch, db: Session = Depends(get_db)):
     header_data = payload.model_dump(exclude_unset=True, exclude={"lines"})
     try:
@@ -406,7 +406,7 @@ def get_receipt(receipt_id: int, db: Session = Depends(get_db)):
     return obj
 
 
-@router.patch("/receipts/{receipt_id}", response_model=schemas.ReceiptDetailOut, tags=["入金"])
+@router.patch("/receipts/{receipt_id}", response_model=schemas.ReceiptDetailOut, tags=["入金"], dependencies=[Depends(get_current_user)])
 def update_receipt(receipt_id: int, payload: schemas.ReceiptPatch, db: Session = Depends(get_db)):
     header_data = payload.model_dump(exclude_unset=True, exclude={"lines"})
     try:
@@ -453,7 +453,7 @@ def get_payment(payment_id: int, db: Session = Depends(get_db)):
     return obj
 
 
-@router.patch("/payments/{payment_id}", response_model=schemas.PaymentDetailOut, tags=["支払"])
+@router.patch("/payments/{payment_id}", response_model=schemas.PaymentDetailOut, tags=["支払"], dependencies=[Depends(get_current_user)])
 def update_payment(payment_id: int, payload: schemas.PaymentPatch, db: Session = Depends(get_db)):
     header_data = payload.model_dump(exclude_unset=True, exclude={"lines"})
     try:

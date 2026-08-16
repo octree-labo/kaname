@@ -7,9 +7,9 @@ from sqlalchemy.orm import Session
 
 from .. import crud, models, schemas
 from ..database import get_db
-from ..security import SessionUser, get_current_user
+from ..security import SessionUser, get_current_user, get_viewer
 
-router = APIRouter(dependencies=[Depends(get_current_user)])
+router = APIRouter(dependencies=[Depends(get_viewer)])
 
 
 # ------------------------------------------------------------
@@ -47,7 +47,7 @@ def get_partner(partner_id: int, as_of: date | None = None, db: Session = Depend
     return _partner_with_current(partner, as_of=as_of)
 
 
-@router.patch("/partners/{partner_id}", response_model=schemas.PartnerOut, tags=["共通マスタ"])
+@router.patch("/partners/{partner_id}", response_model=schemas.PartnerOut, tags=["共通マスタ"], dependencies=[Depends(get_current_user)])
 def patch_partner(partner_id: int, payload: schemas.PartnerPatchRequest, db: Session = Depends(get_db)):
     partner = crud.get_partner(db, partner_id)
     if partner is None:
@@ -112,7 +112,7 @@ def list_products(
     return crud.list_products(db, keyword=keyword, limit=page_size, offset=(page - 1) * page_size)
 
 
-@router.post("/products", response_model=schemas.ProductOut, status_code=201, tags=["共通マスタ"])
+@router.post("/products", response_model=schemas.ProductOut, status_code=201, tags=["共通マスタ"], dependencies=[Depends(get_current_user)])
 def create_product(payload: schemas.ProductIn, db: Session = Depends(get_db)):
     return crud.create_product(db, payload.model_dump())
 
@@ -125,7 +125,7 @@ def get_product(product_id: int, db: Session = Depends(get_db)):
     return product
 
 
-@router.patch("/products/{product_id}", response_model=schemas.ProductOut, tags=["共通マスタ"])
+@router.patch("/products/{product_id}", response_model=schemas.ProductOut, tags=["共通マスタ"], dependencies=[Depends(get_current_user)])
 def update_product(product_id: int, payload: schemas.ProductIn, db: Session = Depends(get_db)):
     product = crud.get_product(db, product_id)
     if product is None:
@@ -157,7 +157,7 @@ def list_price_master(
     )
 
 
-@router.post("/price-master", response_model=schemas.PriceMasterOut, status_code=201, tags=["共通マスタ"])
+@router.post("/price-master", response_model=schemas.PriceMasterOut, status_code=201, tags=["共通マスタ"], dependencies=[Depends(get_current_user)])
 def create_price_master(payload: schemas.PriceMasterIn, db: Session = Depends(get_db)):
     return crud.create_price_master(db, payload.model_dump())
 
@@ -170,7 +170,7 @@ def get_price_master(price_id: int, db: Session = Depends(get_db)):
     return row
 
 
-@router.patch("/price-master/{price_id}", response_model=schemas.PriceMasterOut, tags=["共通マスタ"])
+@router.patch("/price-master/{price_id}", response_model=schemas.PriceMasterOut, tags=["共通マスタ"], dependencies=[Depends(get_current_user)])
 def update_price_master(price_id: int, payload: schemas.PriceMasterPatch, db: Session = Depends(get_db)):
     row = db.get(models.PriceMaster, price_id)
     if row is None:

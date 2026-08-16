@@ -18,9 +18,9 @@ class CamelModel(BaseModel):
 # 認証 / ユーザー管理
 # ------------------------------------------------------------
 class CurrentUser(CamelModel):
-    email: str
+    email: str | None = None
     name: str | None = None
-    role: UserRole
+    role: str
 
 
 class AdminUserOut(CamelModel):

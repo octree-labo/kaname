@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import type { PartnerOut, PartnerType, RoundingType } from "@/lib/types";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -11,6 +12,7 @@ function today(): string {
 
 export default function NewPartnerPage() {
   const router = useRouter();
+  const { isGuest } = useCurrentUser();
   const [partnerCode, setPartnerCode] = useState("");
   const [partnerType, setPartnerType] = useState<PartnerType>("customer");
   const [roundingType, setRoundingType] = useState<RoundingType>("round");
@@ -47,6 +49,17 @@ export default function NewPartnerPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (isGuest) {
+    return (
+      <div className="max-w-xl">
+        <h1 className="text-xl font-semibold text-slate-900">取引先 新規登録</h1>
+        <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          ゲストは閲覧のみで、新規登録はできません。
+        </p>
+      </div>
+    );
   }
 
   return (

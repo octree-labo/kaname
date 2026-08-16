@@ -8,6 +8,7 @@ import type { QuotationOut } from "@/lib/types";
 import { formatApprovalStatus } from "@/lib/format";
 import { DataTable, type Column } from "@/components/DataTable";
 import { PartnerPicker } from "@/components/PartnerPicker";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 
 const APPROVAL_STATUS_OPTIONS = [
   { value: "", label: "すべて" },
@@ -18,6 +19,7 @@ const APPROVAL_STATUS_OPTIONS = [
 ];
 
 export default function QuotationsPage() {
+  const { canWrite } = useCurrentUser();
   const [partnerId, setPartnerId] = useState("");
   const [keyword, setKeyword] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -56,12 +58,14 @@ export default function QuotationsPage() {
     <div className="flex h-full flex-col">
       <div className="flex shrink-0 items-center justify-between">
         <h1 className="text-xl font-semibold text-slate-900">見積</h1>
-        <Link
-          href="/quotations/new"
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-        >
-          新規作成
-        </Link>
+        {canWrite && (
+          <Link
+            href="/quotations/new"
+            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+          >
+            新規作成
+          </Link>
+        )}
       </div>
 
       <div className="mt-4 grid shrink-0 grid-cols-2 gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-5">

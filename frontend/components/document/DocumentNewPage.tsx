@@ -7,6 +7,7 @@ import type { DocumentModuleConfig } from "@/lib/documentModules";
 import { PartnerPicker } from "@/components/PartnerPicker";
 import { ProductLineFields } from "@/components/ProductLineFields";
 import { buildProductLinePayload, type ProductLineValue } from "@/lib/lineHelpers";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -23,6 +24,7 @@ interface AmountLineRow {
 
 export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
   const router = useRouter();
+  const { isGuest } = useCurrentUser();
   const [partnerId, setPartnerId] = useState("");
   const [date, setDate] = useState(today());
   const [productLines, setProductLines] = useState<ProductLineRow[]>([
@@ -81,6 +83,17 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (isGuest) {
+    return (
+      <div className="max-w-2xl">
+        <h1 className="text-xl font-semibold text-slate-900">{config.label} 新規作成</h1>
+        <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          ゲストは閲覧のみで、新規作成はできません。
+        </p>
+      </div>
+    );
   }
 
   return (

@@ -17,8 +17,8 @@ from ..models import UserStatus
 from ..schemas import CurrentUser
 from ..security import (
     create_pending_application,
-    get_current_user,
     get_user_by_email,
+    get_viewer,
     oauth,
     provision_login_user,
 )
@@ -75,6 +75,12 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
     return RedirectResponse(url=settings.frontend_origin)
 
 
+@router.get("/guest")
+async def guest_login(request: Request):
+    request.session["guest"] = True
+    return RedirectResponse(url=settings.frontend_origin)
+
+
 @router.post("/logout")
 async def logout(request: Request):
     request.session.clear()
@@ -82,5 +88,5 @@ async def logout(request: Request):
 
 
 @router.get("/me", response_model=CurrentUser)
-async def me(user=Depends(get_current_user)):
+async def me(user=Depends(get_viewer)):
     return CurrentUser(email=user.email, name=user.name, role=user.role)

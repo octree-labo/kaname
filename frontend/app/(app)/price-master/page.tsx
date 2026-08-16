@@ -8,12 +8,14 @@ import { DataTable, type Column } from "@/components/DataTable";
 import { formatNumber } from "@/lib/format";
 import { PartnerPicker } from "@/components/PartnerPicker";
 import { ProductPicker } from "@/components/ProductPicker";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
 export default function PriceMasterPage() {
+  const { canWrite } = useCurrentUser();
   const [partnerFilter, setPartnerFilter] = useState("");
   const [productFilter, setProductFilter] = useState("");
 
@@ -74,30 +76,36 @@ export default function PriceMasterPage() {
     { key: "unitPrice", label: "単価", align: "right", sortable: true, sortValue: (r) => Number(r.unitPrice), render: (r) => formatNumber(r.unitPrice) },
     { key: "effectiveStartDate", label: "適用開始日", sortable: true },
     { key: "effectiveEndDate", label: "適用終了日", sortable: true, render: (r) => r.effectiveEndDate ?? "-" },
-    {
-      key: "edit",
-      label: "",
-      render: (r) => (
-        <a href={`/price-master/${r.id}/edit`} className="text-slate-700 hover:underline">
-          編集
-        </a>
-      ),
-    },
+    ...(canWrite
+      ? [
+          {
+            key: "edit",
+            label: "",
+            render: (r: PriceMasterOut) => (
+              <a href={`/price-master/${r.id}/edit`} className="text-slate-700 hover:underline">
+                編集
+              </a>
+            ),
+          } satisfies Column<PriceMasterOut>,
+        ]
+      : []),
   ];
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex shrink-0 items-center justify-between">
         <h1 className="text-xl font-semibold text-slate-900">単価マスタ</h1>
-        <button
-          onClick={() => setShowForm((v) => !v)}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-        >
-          {showForm ? "閉じる" : "新規登録"}
-        </button>
+        {canWrite && (
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+          >
+            {showForm ? "閉じる" : "新規登録"}
+          </button>
+        )}
       </div>
 
-      {showForm && (
+      {canWrite && showForm && (
         <form
           onSubmit={handleSubmit}
           className="mt-4 grid shrink-0 max-w-2xl grid-cols-2 gap-3 rounded-lg border border-slate-200 bg-white p-4"

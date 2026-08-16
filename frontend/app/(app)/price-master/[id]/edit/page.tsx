@@ -7,10 +7,12 @@ import { api, ApiError, fetcher } from "@/lib/api";
 import type { PriceMasterOut, PriceType } from "@/lib/types";
 import { PartnerPicker } from "@/components/PartnerPicker";
 import { ProductPicker } from "@/components/ProductPicker";
+import { useCurrentUser } from "@/lib/useCurrentUser";
 
 export default function EditPriceMasterPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const { isGuest } = useCurrentUser();
   const { data } = useSWR<PriceMasterOut>(`/api/price-master/${params.id}`, fetcher);
 
   const [priceType, setPriceType] = useState<PriceType>("sales");
@@ -35,6 +37,17 @@ export default function EditPriceMasterPage() {
   }, [data]);
 
   if (!data) return <p className="text-sm text-slate-600">読み込み中...</p>;
+
+  if (isGuest) {
+    return (
+      <div className="max-w-xl">
+        <h1 className="text-xl font-semibold text-slate-900">単価マスタ 編集</h1>
+        <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          ゲストは閲覧のみで、編集はできません。
+        </p>
+      </div>
+    );
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
