@@ -8,14 +8,15 @@ import { DataTable, type Column } from "@/components/DataTable";
 import { formatNumber } from "@/lib/format";
 import { PartnerPicker } from "@/components/PartnerPicker";
 import { ProductPicker } from "@/components/ProductPicker";
-import { useCurrentUser } from "@/lib/useCurrentUser";
+import { useGuestGuard } from "@/lib/useGuestGuard";
+import { GuestBlockedModal } from "@/components/GuestBlockedModal";
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
 export default function PriceMasterPage() {
-  const { canWrite } = useCurrentUser();
+  const { blocked, setBlocked, guard } = useGuestGuard();
   const [partnerFilter, setPartnerFilter] = useState("");
   const [productFilter, setProductFilter] = useState("");
 
@@ -37,6 +38,7 @@ export default function PriceMasterPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (guard()) return;
     setError(null);
     setSubmitting(true);
     try {
@@ -76,36 +78,31 @@ export default function PriceMasterPage() {
     { key: "unitPrice", label: "単価", align: "right", sortable: true, sortValue: (r) => Number(r.unitPrice), render: (r) => formatNumber(r.unitPrice) },
     { key: "effectiveStartDate", label: "適用開始日", sortable: true },
     { key: "effectiveEndDate", label: "適用終了日", sortable: true, render: (r) => r.effectiveEndDate ?? "-" },
-    ...(canWrite
-      ? [
-          {
-            key: "edit",
-            label: "",
-            render: (r: PriceMasterOut) => (
-              <a href={`/price-master/${r.id}/edit`} className="text-slate-700 hover:underline">
-                編集
-              </a>
-            ),
-          } satisfies Column<PriceMasterOut>,
-        ]
-      : []),
+    {
+      key: "edit",
+      label: "",
+      render: (r) => (
+        <a href={`/price-master/${r.id}/edit`} className="text-slate-700 hover:underline">
+          編集
+        </a>
+      ),
+    },
   ];
 
   return (
     <div className="flex h-full flex-col">
+      <GuestBlockedModal open={blocked} onClose={() => setBlocked(false)} />
       <div className="flex shrink-0 items-center justify-between">
         <h1 className="text-xl font-semibold text-slate-900">単価マスタ</h1>
-        {canWrite && (
-          <button
-            onClick={() => setShowForm((v) => !v)}
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-          >
-            {showForm ? "閉じる" : "新規登録"}
-          </button>
-        )}
+        <button
+          onClick={() => setShowForm((v) => !v)}
+          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+        >
+          {showForm ? "閉じる" : "新規登録"}
+        </button>
       </div>
 
-      {canWrite && showForm && (
+      {showForm && (
         <form
           onSubmit={handleSubmit}
           className="mt-4 grid shrink-0 max-w-2xl grid-cols-2 gap-3 rounded-lg border border-slate-200 bg-white p-4"

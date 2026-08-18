@@ -12,7 +12,8 @@ import type {
   TransactionHistoryResponse,
 } from "@/lib/types";
 import { formatNumber, formatRoundingType } from "@/lib/format";
-import { useCurrentUser } from "@/lib/useCurrentUser";
+import { useGuestGuard } from "@/lib/useGuestGuard";
+import { GuestBlockedModal } from "@/components/GuestBlockedModal";
 
 const PARTNER_TYPE_LABEL: Record<string, string> = {
   customer: "得意先",
@@ -37,7 +38,7 @@ const TRANSACTION_TYPE_LABEL: Record<string, string> = {
 export default function PartnerDetailPage() {
   const params = useParams<{ id: string }>();
   const partnerId = params.id;
-  const { canWrite } = useCurrentUser();
+  const { blocked, setBlocked, guard } = useGuestGuard();
 
   const { data: partner, mutate: mutatePartner } = useSWR<PartnerWithCurrentDetailOut>(
     `/api/partners/${partnerId}`,
@@ -81,6 +82,7 @@ export default function PartnerDetailPage() {
 
   async function handleSettingsSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (guard()) return;
     setSettingsError(null);
     setSettingsSubmitting(true);
     try {
@@ -110,6 +112,7 @@ export default function PartnerDetailPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (guard()) return;
     setError(null);
     setSubmitting(true);
     try {
@@ -133,6 +136,7 @@ export default function PartnerDetailPage() {
 
   return (
     <div className="max-w-3xl space-y-8">
+      <GuestBlockedModal open={blocked} onClose={() => setBlocked(false)} />
       <div>
         <h1 className="text-xl font-semibold text-slate-900">
           {current?.name ?? "(未設定)"}
@@ -143,14 +147,12 @@ export default function PartnerDetailPage() {
       <section className="rounded-lg border border-slate-200 bg-white p-5">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-700">設定</h2>
-          {canWrite && (
-            <button
-              onClick={openSettings}
-              className="rounded-md border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-100"
-            >
-              設定を変更
-            </button>
-          )}
+          <button
+            onClick={openSettings}
+            className="rounded-md border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-100"
+          >
+            設定を変更
+          </button>
         </div>
         <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
           <dt className="text-slate-600">区分</dt>
@@ -225,14 +227,12 @@ export default function PartnerDetailPage() {
       <section className="rounded-lg border border-slate-200 bg-white p-5">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-700">現在の情報</h2>
-          {canWrite && (
-            <button
-              onClick={openForm}
-              className="rounded-md border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-100"
-            >
-              情報を変更
-            </button>
-          )}
+          <button
+            onClick={openForm}
+            className="rounded-md border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-100"
+          >
+            情報を変更
+          </button>
         </div>
         {current ? (
           <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm">

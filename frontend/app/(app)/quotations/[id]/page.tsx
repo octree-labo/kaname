@@ -6,13 +6,14 @@ import useSWR from "swr";
 import { api, ApiError, fetcher, pdfUrl } from "@/lib/api";
 import type { QuotationOut, QuotationLineWithRemainingOut } from "@/lib/types";
 import { formatApprovalStatus, formatNumber } from "@/lib/format";
-import { useCurrentUser } from "@/lib/useCurrentUser";
+import { useGuestGuard } from "@/lib/useGuestGuard";
+import { GuestBlockedModal } from "@/components/GuestBlockedModal";
 
 export default function QuotationDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const quotationId = params.id;
-  const { canWrite } = useCurrentUser();
+  const { blocked, setBlocked, guard } = useGuestGuard();
 
   const { data: quotation, mutate: mutateQuotation } = useSWR<QuotationOut>(
     `/api/quotations/${quotationId}`,
@@ -31,6 +32,7 @@ export default function QuotationDetailPage() {
   if (!quotation || !lines) return <p className="text-sm text-slate-600">読み込み中...</p>;
 
   async function handleApprove() {
+    if (guard()) return;
     setError(null);
     setBusy(true);
     try {
@@ -44,6 +46,7 @@ export default function QuotationDetailPage() {
   }
 
   async function handleConfirmWhole() {
+    if (guard()) return;
     setError(null);
     setBusy(true);
     try {
@@ -59,6 +62,7 @@ export default function QuotationDetailPage() {
   }
 
   async function handleConfirmSelected() {
+    if (guard()) return;
     setError(null);
     const lineSelections = (lines ?? [])
       .filter((l) => selected[l.id])
@@ -88,6 +92,7 @@ export default function QuotationDetailPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
+      <GuestBlockedModal open={blocked} onClose={() => setBlocked(false)} />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">見積 {quotation.quotationNo}</h1>
@@ -96,14 +101,12 @@ export default function QuotationDetailPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          {canWrite && (
-            <a
-              href={`/quotations/${quotationId}/edit`}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
-            >
-              編集
-            </a>
-          )}
+          <a
+            href={`/quotations/${quotationId}/edit`}
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
+          >
+            編集
+          </a>
           <a
             href={pdfUrl(`/api/quotations/${quotationId}/pdf`)}
             target="_blank"
@@ -112,7 +115,7 @@ export default function QuotationDetailPage() {
           >
             PDF表示
           </a>
-          {canWrite && !isApproved && (
+          {!isApproved && (
             <button
               onClick={handleApprove}
               disabled={busy}
@@ -186,31 +189,29 @@ export default function QuotationDetailPage() {
         </div>
       </section>
 
-      {canWrite && (
-        <section className="rounded-lg border border-slate-200 bg-white p-5">
-          <h2 className="text-sm font-semibold text-slate-700">受注確定</h2>
-          <p className="mt-1 text-xs text-slate-600">
-            伝票単位で全明細を一括確定するか、上表でチェックした明細のみを指定数量で確定できます（数量未入力の場合は残数がそのまま使われます）。
-          </p>
-          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-          <div className="mt-3 flex gap-2">
-            <button
-              onClick={handleConfirmWhole}
-              disabled={busy}
-              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
-            >
-              伝票単位で受注確定
-            </button>
-            <button
-              onClick={handleConfirmSelected}
-              disabled={busy}
-              className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50"
-            >
-              選択した明細で受注確定
-            </button>
-          </div>
-        </section>
-      )}
+      <section className="rounded-lg border border-slate-200 bg-white p-5">
+        <h2 className="text-sm font-semibold text-slate-700">受注確定</h2>
+        <p className="mt-1 text-xs text-slate-600">
+          伝票単位で全明細を一括確定するか、上表でチェックした明細のみを指定数量で確定できます（数量未入力の場合は残数がそのまま使われます）。
+        </p>
+        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={handleConfirmWhole}
+            disabled={busy}
+            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+          >
+            伝票単位で受注確定
+          </button>
+          <button
+            onClick={handleConfirmSelected}
+            disabled={busy}
+            className="rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+          >
+            選択した明細で受注確定
+          </button>
+        </div>
+      </section>
     </div>
   );
 }

@@ -8,7 +8,8 @@ import type { QuotationDetailOut } from "@/lib/types";
 import { PartnerPicker } from "@/components/PartnerPicker";
 import { ProductLineFields } from "@/components/ProductLineFields";
 import { buildProductLinePayload, type ProductLineValue } from "@/lib/lineHelpers";
-import { useCurrentUser } from "@/lib/useCurrentUser";
+import { useGuestGuard } from "@/lib/useGuestGuard";
+import { GuestBlockedModal } from "@/components/GuestBlockedModal";
 
 interface LineEdit extends ProductLineValue {
   id: number;
@@ -17,7 +18,7 @@ interface LineEdit extends ProductLineValue {
 export default function EditQuotationPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { isGuest } = useCurrentUser();
+  const { blocked, setBlocked, guard } = useGuestGuard();
   const { data } = useSWR<QuotationDetailOut>(`/api/quotations/${params.id}`, fetcher);
 
   const [partnerId, setPartnerId] = useState("");
@@ -49,19 +50,9 @@ export default function EditQuotationPage() {
 
   if (!data) return <p className="text-sm text-slate-600">読み込み中...</p>;
 
-  if (isGuest) {
-    return (
-      <div className="max-w-2xl">
-        <h1 className="text-xl font-semibold text-slate-900">見積 編集</h1>
-        <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          ゲストは閲覧のみで、編集はできません。
-        </p>
-      </div>
-    );
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (guard()) return;
     setError(null);
     setSubmitting(true);
     try {
@@ -82,6 +73,7 @@ export default function EditQuotationPage() {
 
   return (
     <div className="max-w-2xl">
+      <GuestBlockedModal open={blocked} onClose={() => setBlocked(false)} />
       <h1 className="text-xl font-semibold text-slate-900">見積 編集</h1>
       <p className="mt-1 text-xs text-slate-600">
         既存明細の商品・数量・単価（または金額）のみ変更できます。明細の追加・削除には対応していません。

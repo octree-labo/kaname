@@ -8,7 +8,6 @@ import { formatDocumentStatus } from "@/lib/format";
 import type { DocumentModuleConfig } from "@/lib/documentModules";
 import { DataTable, type Column } from "@/components/DataTable";
 import { PartnerPicker } from "@/components/PartnerPicker";
-import { useCurrentUser } from "@/lib/useCurrentUser";
 
 interface DocHeader {
   id: number;
@@ -35,7 +34,6 @@ const APPROVAL_STATUS_OPTIONS: { value: string; label: string }[] = [
 ];
 
 export function DocumentListPage({ config }: { config: DocumentModuleConfig }) {
-  const { canWrite } = useCurrentUser();
   const [partnerId, setPartnerId] = useState("");
   const [keyword, setKeyword] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -77,14 +75,12 @@ export function DocumentListPage({ config }: { config: DocumentModuleConfig }) {
     <div className="flex h-full flex-col">
       <div className="flex shrink-0 items-center justify-between">
         <h1 className="text-xl font-semibold text-slate-900">{config.label}</h1>
-        {canWrite && (
-          <Link
-            href={`/${config.key}/new`}
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-          >
-            新規作成
-          </Link>
-        )}
+        <Link
+          href={`/${config.key}/new`}
+          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+        >
+          新規作成
+        </Link>
       </div>
 
       <div className="mt-4 grid shrink-0 grid-cols-2 gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-5">

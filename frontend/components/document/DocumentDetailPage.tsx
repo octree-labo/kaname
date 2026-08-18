@@ -6,7 +6,6 @@ import useSWR from "swr";
 import { fetcher } from "@/lib/api";
 import { formatDocumentStatus, formatNumber } from "@/lib/format";
 import type { DocumentModuleConfig } from "@/lib/documentModules";
-import { useCurrentUser } from "@/lib/useCurrentUser";
 
 interface DocLine {
   id: number;
@@ -32,7 +31,6 @@ interface DocDetail {
 
 export function DocumentDetailPage({ config }: { config: DocumentModuleConfig }) {
   const params = useParams<{ id: string }>();
-  const { canWrite } = useCurrentUser();
   const { data } = useSWR<DocDetail>(`${config.apiPath}/${params.id}`, fetcher);
 
   if (!data) return <p className="text-sm text-slate-600">読み込み中...</p>;
@@ -45,14 +43,12 @@ export function DocumentDetailPage({ config }: { config: DocumentModuleConfig })
         <h1 className="text-xl font-semibold text-slate-900">
           {config.label} {String(data[config.noField] ?? "")}
         </h1>
-        {canWrite && (
-          <Link
-            href={`/${config.key}/${data.id}/edit`}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
-          >
-            編集
-          </Link>
-        )}
+        <Link
+          href={`/${config.key}/${data.id}/edit`}
+          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
+        >
+          編集
+        </Link>
       </div>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-1 rounded-lg border border-slate-200 bg-white p-4 text-sm">
         <dt className="text-slate-600">取引先</dt>

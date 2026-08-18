@@ -7,7 +7,8 @@ import type { DocumentModuleConfig } from "@/lib/documentModules";
 import { PartnerPicker } from "@/components/PartnerPicker";
 import { ProductLineFields } from "@/components/ProductLineFields";
 import { buildProductLinePayload, type ProductLineValue } from "@/lib/lineHelpers";
-import { useCurrentUser } from "@/lib/useCurrentUser";
+import { useGuestGuard } from "@/lib/useGuestGuard";
+import { GuestBlockedModal } from "@/components/GuestBlockedModal";
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -24,7 +25,7 @@ interface AmountLineRow {
 
 export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
   const router = useRouter();
-  const { isGuest } = useCurrentUser();
+  const { blocked, setBlocked, guard } = useGuestGuard();
   const [partnerId, setPartnerId] = useState("");
   const [date, setDate] = useState(today());
   const [productLines, setProductLines] = useState<ProductLineRow[]>([
@@ -54,6 +55,7 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (guard()) return;
     setError(null);
     setSubmitting(true);
     try {
@@ -85,19 +87,9 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
     }
   }
 
-  if (isGuest) {
-    return (
-      <div className="max-w-2xl">
-        <h1 className="text-xl font-semibold text-slate-900">{config.label} 新規作成</h1>
-        <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          ゲストは閲覧のみで、新規作成はできません。
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-2xl">
+      <GuestBlockedModal open={blocked} onClose={() => setBlocked(false)} />
       <h1 className="text-xl font-semibold text-slate-900">{config.label} 新規作成</h1>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-5">

@@ -5,10 +5,11 @@ import useSWR from "swr";
 import { api, ApiError, fetcher } from "@/lib/api";
 import type { ProductOut } from "@/lib/types";
 import { DataTable, type Column } from "@/components/DataTable";
-import { useCurrentUser } from "@/lib/useCurrentUser";
+import { useGuestGuard } from "@/lib/useGuestGuard";
+import { GuestBlockedModal } from "@/components/GuestBlockedModal";
 
 export default function ProductsPage() {
-  const { canWrite } = useCurrentUser();
+  const { blocked, setBlocked, guard } = useGuestGuard();
   const [keyword, setKeyword] = useState("");
   const { data, mutate } = useSWR<ProductOut[]>(
     `/api/products${keyword ? `?keyword=${encodeURIComponent(keyword)}` : ""}`,
@@ -25,6 +26,7 @@ export default function ProductsPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (guard()) return;
     setError(null);
     setSubmitting(true);
     try {
@@ -52,36 +54,31 @@ export default function ProductsPage() {
     { key: "category", label: "分類", sortable: true, render: (r) => r.category ?? "-" },
     { key: "unit", label: "単位", sortable: true },
     { key: "isActive", label: "状態", sortable: true, render: (r) => (r.isActive ? "有効" : "無効") },
-    ...(canWrite
-      ? [
-          {
-            key: "edit",
-            label: "",
-            render: (r: ProductOut) => (
-              <a href={`/products/${r.id}/edit`} className="text-slate-700 hover:underline">
-                編集
-              </a>
-            ),
-          } satisfies Column<ProductOut>,
-        ]
-      : []),
+    {
+      key: "edit",
+      label: "",
+      render: (r) => (
+        <a href={`/products/${r.id}/edit`} className="text-slate-700 hover:underline">
+          編集
+        </a>
+      ),
+    },
   ];
 
   return (
     <div className="flex h-full flex-col">
+      <GuestBlockedModal open={blocked} onClose={() => setBlocked(false)} />
       <div className="flex shrink-0 items-center justify-between">
         <h1 className="text-xl font-semibold text-slate-900">商品</h1>
-        {canWrite && (
-          <button
-            onClick={() => setShowForm((v) => !v)}
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-          >
-            {showForm ? "閉じる" : "新規登録"}
-          </button>
-        )}
+        <button
+          onClick={() => setShowForm((v) => !v)}
+          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+        >
+          {showForm ? "閉じる" : "新規登録"}
+        </button>
       </div>
 
-      {canWrite && showForm && (
+      {showForm && (
         <form
           onSubmit={handleSubmit}
           className="mt-4 grid shrink-0 max-w-2xl grid-cols-2 gap-3 rounded-lg border border-slate-200 bg-white p-4"
