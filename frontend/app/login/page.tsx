@@ -80,6 +80,13 @@ export default function LoginPage() {
         <Suspense fallback={null}>
           <LoginNotice />
         </Suspense>
+
+        <a
+          href="/privacy"
+          className="mt-6 block text-center text-xs text-slate-400 underline underline-offset-2"
+        >
+          プライバシーポリシー
+        </a>
       </div>
     </div>
   );
