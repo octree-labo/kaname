@@ -29,7 +29,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (res.status === 401) {
-    if (typeof window !== "undefined") {
+    // /auth/me は未ログイン・ゲストでも呼ばれ、401は「未ログイン」という正常な
+    // 状態を表すだけなので、ここでは強制リダイレクトしない（呼び出し元の
+    // useCurrentUser が user=undefined として扱う）。ルートレイアウトの
+    // AdSenseGuest も含め全ページでこれを呼ぶため、ここで無条件にリダイレクト
+    // すると /login 自身で 401→リダイレクト→再マウント→401… の無限リロード
+    // ループになる。
+    if (path !== "/auth/me" && typeof window !== "undefined") {
       // Reactコンポーネント外(fetchラッパー)から呼ばれるため useRouter は使えない。
       // 意図的にハードリダイレクトしてクライアント状態を確実にリセットする。
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination
