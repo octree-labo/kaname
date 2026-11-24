@@ -6,6 +6,8 @@
 
 本サービスは **https://kaname.ajesta.work/** で提供されている（Google OAuth認証、許可アカウントのみ利用可）。
 
+紹介用 LP は **https://kaname.ajesta.work/lp** （ログインなしで誰でも見られる）。元は `frontend/public/lp/index.html` の静的 HTML で、`next.config.ts` の rewrites で `/lp` に割り当て、`proxy.ts` の matcher で認証・ゲストセッションの対象から外している。
+
 機能一覧の全体像は [`基幹業務システム機能一覧.md`](./基幹業務システム機能一覧.md) を参照。
 
 ## 技術スタック
