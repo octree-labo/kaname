@@ -727,7 +727,7 @@ def list_open_lines(db: Session, kind: str, *, partner_id: int | None = None, li
         select(line_m, header_m, remaining_col)
         .join(header_m, getattr(line_m, src.header_fk) == header_m.id)
         .join(view_m, getattr(view_m, src.view_line_field) == line_m.id)
-        .where(status_col.notin_(["cancelled", "rejected"]))
+        .where(status_col != ("rejected" if src.status_field == "approval_status" else "cancelled"))
         .where(remaining_col > 0)
     )
     if partner_id is not None:
