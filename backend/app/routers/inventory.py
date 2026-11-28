@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -55,9 +55,39 @@ def list_allocations(
     return rows
 
 
+@router.get("/availability", response_model=list[schemas.InventoryAvailabilityOut])
+def list_availability(keyword: str | None = None, db: Session = Depends(get_db)):
+    """商品ごとの「在庫 − 引当 + 入荷予定 = 使える見込み」。"""
+    return crud.inventory_availability(db, keyword=keyword)
+
+
+_STAGE_LINE = {
+    "quotation": ("quotation_line_id", models.QuotationLine),
+    "order": ("order_line_id", models.OrderLine),
+    "sales": ("sales_line_id", models.SalesLine),
+}
+
+
 @router.post("/allocations", response_model=schemas.InventoryAllocationOut, status_code=201, dependencies=[Depends(get_current_user)])
 def create_allocation(payload: schemas.InventoryAllocationIn, db: Session = Depends(get_db)):
-    row = models.InventoryAllocation(**payload.model_dump())
+    data = payload.model_dump()
+    stage = data["allocation_stage"]
+    if stage not in _STAGE_LINE:
+        raise HTTPException(status_code=400, detail="引当段階は quotation / order / sales のどれかを指定してください")
+    field, line_model = _STAGE_LINE[stage]
+    for other, _ in _STAGE_LINE.values():
+        if other != field:
+            data[other] = None  # 段階と違う明細IDは使わない（DBのCHECK制約違反を防ぐ）
+    if data[field] is None:
+        raise HTTPException(status_code=400, detail="引当する明細を指定してください")
+    line = db.get(line_model, data[field])
+    if line is None:
+        raise HTTPException(status_code=400, detail="指定した明細が見つかりません")
+    if line.product_id != data["product_id"]:
+        raise HTTPException(status_code=400, detail="明細の商品と引当の商品が違います")
+    if data["quantity"] is None or data["quantity"] <= 0:
+        raise HTTPException(status_code=400, detail="引当数量は 0 より大きくしてください")
+    row = models.InventoryAllocation(**data)
     db.add(row)
     db.commit()
     db.refresh(row)

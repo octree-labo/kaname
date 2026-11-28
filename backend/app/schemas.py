@@ -567,3 +567,35 @@ class InventoryAllocationOut(InventoryAllocationIn):
     product_name: str | None = None
     warehouse_code: str | None = None
     warehouse_name: str | None = None
+
+
+class InventoryAvailabilityOut(CamelModel):
+    product_id: int
+    product_code: str
+    product_name: str
+    unit: str
+    on_hand: Decimal
+    allocated: Decimal
+    incoming: Decimal
+    available: Decimal
+
+
+# ------------------------------------------------------------
+# 残のある上位明細（下位伝票の作成画面で「上位伝票から取り込む」に使う）
+# ------------------------------------------------------------
+class OpenLineOut(CamelModel):
+    line_id: int
+    document_id: int
+    document_no: str
+    document_date: date
+    partner_id: int
+    partner_name: str | None = None
+    line_no: int
+    product_id: int
+    product_code: str | None = None
+    product_name: str | None = None
+    quantity: Decimal | None = None
+    unit_price: Decimal | None = None
+    amount: Decimal
+    remaining_qty: Decimal | None = None
+    remaining_amount: Decimal | None = None
