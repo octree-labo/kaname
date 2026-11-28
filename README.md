@@ -84,6 +84,7 @@ npm run dev
 
 ```bash
 psql "$DATABASE_URL_WITHOUT_DRIVER" -f db/migrations/20261128_remaining_exclude_cancelled.sql
+psql "$DATABASE_URL_WITHOUT_DRIVER" -f db/migrations/20261128b_inventory_movements.sql
 ```
 
 ### 動作確認スクリプト

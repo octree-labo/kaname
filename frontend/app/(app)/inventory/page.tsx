@@ -3,7 +3,14 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/api";
-import type { InventoryStockOut, InventoryAllocationOut, InventoryAvailabilityOut, WarehouseOut } from "@/lib/types";
+import Link from "next/link";
+import type {
+  InventoryStockOut,
+  InventoryAllocationOut,
+  InventoryAvailabilityOut,
+  InventoryMovementOut,
+  WarehouseOut,
+} from "@/lib/types";
 import { formatNumber } from "@/lib/format";
 import { DataTable, type Column } from "@/components/DataTable";
 import { ProductPicker } from "@/components/ProductPicker";
@@ -82,6 +89,64 @@ export default function InventoryPage() {
   if (allocStage) allocParams.set("stage", allocStage);
   const { data: allocations } = useSWR<InventoryAllocationOut[]>(`/api/inventory/allocations?${allocParams.toString()}`, fetcher);
 
+  // 受払履歴は「在庫現在数」と同じ絞り込み（商品・倉庫）を使う
+  const { data: movements } = useSWR<InventoryMovementOut[]>(
+    `/api/inventory/movements?${stockParams.toString()}`,
+    fetcher
+  );
+  const movementColumns: Column<InventoryMovementOut>[] = [
+    {
+      key: "documentDate",
+      label: "伝票日付",
+      sortable: true,
+      render: (r) => r.documentDate ?? "-",
+    },
+    {
+      key: "documentNo",
+      label: "伝票",
+      sortable: true,
+      render: (r) => {
+        if (!r.documentNo || r.documentId == null) return "-";
+        const base = r.movementType === "purchase" ? "purchases" : "sales";
+        return (
+          <Link href={`/${base}/${r.documentId}`} className="text-sky-700 hover:underline">
+            {r.movementType === "purchase" ? "仕入" : "売上"} {r.documentNo}
+          </Link>
+        );
+      },
+    },
+    {
+      key: "productName",
+      label: "商品",
+      sortable: true,
+      render: (r) => (r.productCode ? `${r.productCode} ${r.productName ?? ""}` : r.productId),
+    },
+    {
+      key: "warehouseName",
+      label: "倉庫",
+      sortable: true,
+      render: (r) => (r.warehouseCode ? `${r.warehouseCode} ${r.warehouseName ?? ""}` : r.warehouseId),
+    },
+    {
+      key: "quantity",
+      label: "増減",
+      align: "right",
+      sortable: true,
+      sortValue: (r) => Number(r.quantity),
+      render: (r) => (
+        <span className={Number(r.quantity) < 0 ? "text-red-600" : "text-emerald-700"}>
+          {Number(r.quantity) > 0 ? "+" : ""}
+          {formatNumber(r.quantity)}
+        </span>
+      ),
+    },
+    {
+      key: "migrated",
+      label: "備考",
+      render: (r) => (r.migrated ? "移行前の伝票（在庫数には反映済みとして記録）" : ""),
+    },
+  ];
+
   const stockRows: StockRow[] = (stocks ?? []).map((s, i) => ({ ...s, id: i }));
   const allocRows: AllocationRow[] = (allocations ?? []).map((a) => ({ ...a }));
 
@@ -149,7 +214,7 @@ export default function InventoryPage() {
       <section className="flex min-h-0 flex-1 flex-col">
         <h2 className="shrink-0 text-sm font-semibold text-slate-700">使える在庫の見込み</h2>
         <p className="mt-1 shrink-0 text-xs text-slate-600">
-          在庫数 − 引当中 + 入荷予定（発注残）。見積・受注の引当は、次の伝票に進んでいない残りの分だけを数えるので、同じ在庫を二重に押さえません。
+          在庫数 − 引当中 + 入荷予定（発注残）。見積・受注の引当は、次の伝票に進んでいない残りの分だけを数えるので、同じ在庫を二重に押さえません。売上の引当は下書きの間だけ数えます（確定すると在庫数そのものが減るため）。
         </p>
         <div className="mt-2 grid shrink-0 grid-cols-2 gap-3 rounded-lg border border-slate-200 bg-white p-3 sm:grid-cols-4">
           <div>
@@ -183,6 +248,16 @@ export default function InventoryPage() {
         </div>
         <div className="mt-2 min-h-0 flex-1">
           <DataTable columns={stockColumns} rows={stockRows} />
+        </div>
+      </section>
+
+      <section className="flex min-h-0 flex-1 flex-col">
+        <h2 className="shrink-0 text-sm font-semibold text-slate-700">在庫の受払履歴（新しい順に 200 件）</h2>
+        <p className="mt-1 shrink-0 text-xs text-slate-600">
+          仕入を確定すると入庫、売上を確定すると出庫として在庫数が増減します。訂正・取消をしたときは、その差分が記録されます。絞り込みは「在庫現在数」と同じです。
+        </p>
+        <div className="mt-2 min-h-0 flex-1">
+          <DataTable columns={movementColumns} rows={movements ?? []} />
         </div>
       </section>
 

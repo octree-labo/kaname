@@ -6,6 +6,7 @@ import useSWR from "swr";
 import { fetcher } from "@/lib/api";
 import { formatDocumentStatus, formatNumber } from "@/lib/format";
 import type { DocumentModuleConfig } from "@/lib/documentModules";
+import type { WarehouseOut } from "@/lib/types";
 
 interface DocLine {
   id: number;
@@ -32,6 +33,11 @@ interface DocDetail {
 export function DocumentDetailPage({ config }: { config: DocumentModuleConfig }) {
   const params = useParams<{ id: string }>();
   const { data } = useSWR<DocDetail>(`${config.apiPath}/${params.id}`, fetcher);
+  const { data: warehouses } = useSWR<WarehouseOut[]>(config.hasWarehouse ? "/api/warehouses" : null, fetcher);
+  const warehouseName = (id: number) => {
+    const w = (warehouses ?? []).find((x) => x.id === id);
+    return w ? `${w.warehouseCode} ${w.name}` : String(id);
+  };
 
   if (!data) return <p className="text-sm text-slate-600">読み込み中...</p>;
 
@@ -78,6 +84,7 @@ export function DocumentDetailPage({ config }: { config: DocumentModuleConfig })
                     <th className="px-3 py-2 text-right">単価</th>
                   </>
                 )}
+                {config.hasWarehouse && <th className="px-3 py-2">倉庫</th>}
                 {config.upstreamLineField && <th className="px-3 py-2">上位明細ID</th>}
                 <th className="px-3 py-2 text-right">金額</th>
               </tr>
@@ -93,6 +100,9 @@ export function DocumentDetailPage({ config }: { config: DocumentModuleConfig })
                       <td className="px-3 py-2 text-right">{formatNumber(line.quantity)}</td>
                       <td className="px-3 py-2 text-right">{formatNumber(line.unitPrice)}</td>
                     </>
+                  )}
+                  {config.hasWarehouse && (
+                    <td className="px-3 py-2">{line.warehouseId != null ? warehouseName(Number(line.warehouseId)) : "-"}</td>
                   )}
                   {config.upstreamLineField && (
                     <td className="px-3 py-2 text-slate-600">

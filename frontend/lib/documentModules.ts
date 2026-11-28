@@ -22,6 +22,10 @@ export interface DocumentModuleConfig {
   openLinesKind?: string;
   /** 取り込み元の伝票の名前（例: 受注） */
   upstreamDocLabel?: string;
+  /** 明細ごとに倉庫を持ち、在庫数を増減させる伝票（仕入・売上） */
+  hasWarehouse?: boolean;
+  /** 在庫の動き（例: 入庫）。倉庫の欄の見出しに使う */
+  warehouseLabel?: string;
 }
 
 export const ordersModule: DocumentModuleConfig = {
@@ -70,6 +74,8 @@ export const purchasesModule: DocumentModuleConfig = {
   upstreamLabel: "発注明細ID（任意）",
   openLinesKind: "purchase_order",
   upstreamDocLabel: "発注",
+  hasWarehouse: true,
+  warehouseLabel: "入庫する倉庫",
 };
 
 export const salesModule: DocumentModuleConfig = {
@@ -86,6 +92,8 @@ export const salesModule: DocumentModuleConfig = {
   upstreamLabel: "受注明細ID（任意）",
   openLinesKind: "order_for_sales",
   upstreamDocLabel: "受注",
+  hasWarehouse: true,
+  warehouseLabel: "出庫する倉庫",
 };
 
 export const receiptsModule: DocumentModuleConfig = {
