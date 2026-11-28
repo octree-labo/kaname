@@ -105,21 +105,21 @@ def main() -> None:
     print("upstream validation ok")
 
     # --- 残のある上位明細の一覧 ---
-    open_for_sales = api("GET", "/open-lines/order_for_sales", params={"partnerId": m["cust"]})
+    open_for_sales = api("GET", "/open-lines/order_for_sales", params={"partner_id": m["cust"]})
     assert [(l["lineId"], Decimal(str(l["remainingQty"]))) for l in open_for_sales] == [(o1_line, Decimal(7))], open_for_sales
-    assert api("GET", "/open-lines/order_for_sales", params={"partnerId": m["cust2"]}) == []
+    assert api("GET", "/open-lines/order_for_sales", params={"partner_id": m["cust2"]}) == []
     api("GET", "/open-lines/unknown", 404)
 
     s = api("POST", "/sales", 201, json={"partnerId": m["cust"], "salesDate": "2026-11-06", "lines": [
         {"productId": m["p1"], "quantity": 4, "unitPrice": 100, "orderLineId": o1_line}]})
-    open_for_sales = api("GET", "/open-lines/order_for_sales", params={"partnerId": m["cust"]})
+    open_for_sales = api("GET", "/open-lines/order_for_sales", params={"partner_id": m["cust"]})
     assert Decimal(str(open_for_sales[0]["remainingQty"])) == 3, open_for_sales
     s_line = api("GET", f"/sales/{s['id']}")["lines"][0]["id"]
-    open_recv = api("GET", "/open-lines/sales", params={"partnerId": m["cust"]})
+    open_recv = api("GET", "/open-lines/sales", params={"partner_id": m["cust"]})
     assert open_recv[0]["lineId"] == s_line and Decimal(str(open_recv[0]["remainingAmount"])) == 400, open_recv
     api("POST", "/receipts", 201, json={"partnerId": m["cust"], "receiptDate": "2026-11-10", "lines": [
         {"amount": 150, "salesLineId": s_line}]})
-    open_recv = api("GET", "/open-lines/sales", params={"partnerId": m["cust"]})
+    open_recv = api("GET", "/open-lines/sales", params={"partner_id": m["cust"]})
     assert Decimal(str(open_recv[0]["remainingAmount"])) == 250, open_recv
     api("POST", "/receipts", 400, json={"partnerId": m["cust2"], "receiptDate": "2026-11-10", "lines": [
         {"amount": 10, "salesLineId": s_line}]})
