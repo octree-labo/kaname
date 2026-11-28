@@ -13,6 +13,7 @@ from decimal import ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP, Decimal
 from typing import Any, Generic, TypeVar
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session, selectinload
 
 from . import models
@@ -341,6 +342,124 @@ def list_warehouses(db: Session) -> list[models.Warehouse]:
 # ------------------------------------------------------------
 # 伝票チェーン共通（見積/受注/発注/仕入/売上/入金/支払）
 # ------------------------------------------------------------
+# ------------------------------------------------------------
+# 在庫の受払（仕入で入庫、売上で出庫）
+# ------------------------------------------------------------
+def default_warehouse_id(db: Session) -> int:
+    wid = db.execute(select(models.Warehouse.id).order_by(models.Warehouse.id).limit(1)).scalar_one_or_none()
+    if wid is None:
+        raise ValueError("倉庫が登録されていません。先に倉庫を登録してください")
+    return wid
+
+
+def fill_warehouse(db: Session, line: dict[str, Any]) -> dict[str, Any]:
+    """明細の倉庫が空なら既定の倉庫を入れ、指定されていれば存在を確かめる。"""
+    line = dict(line)
+    if line.get("warehouse_id") is None:
+        line["warehouse_id"] = default_warehouse_id(db)
+    elif db.get(models.Warehouse, line["warehouse_id"]) is None:
+        raise ValueError("指定した倉庫が見つかりません")
+    return line
+
+
+def _adjust_stock(db: Session, product_id: int, warehouse_id: int, delta: Decimal) -> None:
+    """在庫数を delta だけ増減する（行がなければ作る）。同時に更新されても数がずれないよう DB 側で足し込む。"""
+    stmt = pg_insert(models.InventoryStock).values(
+        product_id=product_id, warehouse_id=warehouse_id, quantity_on_hand=delta
+    )
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["product_id", "warehouse_id"],
+        set_={"quantity_on_hand": models.InventoryStock.quantity_on_hand + delta},
+    )
+    db.execute(stmt)
+
+
+def sync_inventory_movements(db: Session, movement: str, header: Any, lines: list[Any]) -> None:
+    """伝票の今の内容に合わせて、受払履歴と在庫数をそろえる。
+
+    明細ごとに「あるべき受払（確定なら 数量×符号、下書き・取消なら 0）」と
+    「これまでに記録した受払の合計」を商品×倉庫ごとに比べ、差分だけを新しい受払として記録し、
+    同じ数だけ在庫数を増減する。登録・数量や倉庫の訂正・取消・取消の取り消しを、同じ処理で扱える。
+    """
+    sign = Decimal(1) if movement == "purchase" else Decimal(-1)
+    m = models.InventoryMovement
+    line_col = m.purchase_line_id if movement == "purchase" else m.sales_line_id
+    line_key = "purchase_line_id" if movement == "purchase" else "sales_line_id"
+    status = getattr(header.status, "value", header.status)
+
+    line_ids = [line.id for line in lines]
+    recorded: dict[int, dict[tuple[int, int], Decimal]] = defaultdict(lambda: defaultdict(Decimal))
+    if line_ids:
+        for line_id, pid, wid, qty in db.execute(
+            select(line_col, m.product_id, m.warehouse_id, m.quantity).where(line_col.in_(line_ids))
+        ).all():
+            recorded[line_id][(pid, wid)] += Decimal(qty)
+
+    for line in lines:
+        wanted: dict[tuple[int, int], Decimal] = {}
+        if status == "confirmed" and line.quantity is not None and line.warehouse_id is not None:
+            wanted[(line.product_id, line.warehouse_id)] = sign * Decimal(line.quantity)
+        have = recorded.get(line.id, {})
+        for key in set(wanted) | set(have):
+            delta = wanted.get(key, Decimal(0)) - have.get(key, Decimal(0))
+            if delta == 0:
+                continue
+            pid, wid = key
+            db.add(m(product_id=pid, warehouse_id=wid, quantity=delta, movement_type=movement, **{line_key: line.id}))
+            _adjust_stock(db, pid, wid, delta)
+
+
+def list_inventory_movements(
+    db: Session, *, product_id: int | None = None, warehouse_id: int | None = None, limit: int = 200
+) -> list[dict]:
+    m = models.InventoryMovement
+    stmt = select(m)
+    if product_id is not None:
+        stmt = stmt.where(m.product_id == product_id)
+    if warehouse_id is not None:
+        stmt = stmt.where(m.warehouse_id == warehouse_id)
+    rows = list(db.execute(stmt.order_by(m.id.desc()).limit(limit)).scalars().all())
+    attach_product_names(db, rows)
+    attach_warehouse_names(db, rows)
+
+    docs: dict[tuple[str, int], tuple[int, str, date]] = {}
+    for kind, line_m, head_m, fk, no, dt, ids in (
+        ("purchase", models.PurchaseLine, models.Purchase, "purchase_id", "purchase_no", "purchase_date",
+         {r.purchase_line_id for r in rows if r.purchase_line_id}),
+        ("sales", models.SalesLine, models.Sales, "sales_id", "sales_no", "sales_date",
+         {r.sales_line_id for r in rows if r.sales_line_id}),
+    ):
+        if not ids:
+            continue
+        for lid, hid, doc_no, doc_date in db.execute(
+            select(line_m.id, head_m.id, getattr(head_m, no), getattr(head_m, dt))
+            .join(head_m, head_m.id == getattr(line_m, fk))
+            .where(line_m.id.in_(ids))
+        ).all():
+            docs[(kind, lid)] = (hid, doc_no, doc_date)
+
+    out = []
+    for r in rows:
+        doc = docs.get((r.movement_type, r.purchase_line_id or r.sales_line_id))
+        out.append({
+            "id": r.id,
+            "product_id": r.product_id,
+            "product_code": r.product_code,  # type: ignore[attr-defined]
+            "product_name": r.product_name,  # type: ignore[attr-defined]
+            "warehouse_id": r.warehouse_id,
+            "warehouse_code": r.warehouse_code,  # type: ignore[attr-defined]
+            "warehouse_name": r.warehouse_name,  # type: ignore[attr-defined]
+            "quantity": r.quantity,
+            "movement_type": r.movement_type,
+            "document_id": doc[0] if doc else None,
+            "document_no": doc[1] if doc else None,
+            "document_date": doc[2] if doc else None,
+            "migrated": r.migrated,
+            "created_at": r.created_at,
+        })
+    return out
+
+
 @dataclass
 class UpstreamSpec:
     """明細が参照する「1つ上位の明細」の定義。
@@ -371,6 +490,8 @@ class DocumentCRUD(Generic[HeaderT, LineT]):
     status_field: str  # 例: "status" or "approval_status"
     lines_have_qty: bool = True  # False の場合は明細が金額のみ（入金/支払）
     upstream: UpstreamSpec | None = None
+    # 在庫を動かす伝票: "purchase"（仕入＝入庫）/ "sales"（売上＝出庫）。それ以外は None
+    movement: str | None = None
 
     def validate_upstream(
         self, db: Session, partner_id: int, lines_data: list[dict[str, Any]], *, check_status: bool = True
@@ -458,6 +579,8 @@ class DocumentCRUD(Generic[HeaderT, LineT]):
         if not lines_data:
             raise ValueError("明細を 1 行以上入力してください")
         self.validate_upstream(db, header_data["partner_id"], lines_data)
+        if self.movement:
+            lines_data = [fill_warehouse(db, line) for line in lines_data]
         doc_no = self._next_no(db)
         header_kwargs = dict(header_data)
         if hasattr(self.header_model, "created_by"):
@@ -474,6 +597,10 @@ class DocumentCRUD(Generic[HeaderT, LineT]):
             if self.lines_have_qty:
                 line = resolve_line_amount(line, partner)  # type: ignore[arg-type]
             db.add(self.line_model(**{self.line_fk_name: header.id, "line_no": i}, **line))  # type: ignore[call-arg]
+        if self.movement:
+            db.flush()
+            db.refresh(header)
+            sync_inventory_movements(db, self.movement, header, getattr(header, self.lines_relationship))
         db.commit()
         return self.get(db, header.id)  # type: ignore[attr-defined,arg-type]
 
@@ -494,7 +621,14 @@ class DocumentCRUD(Generic[HeaderT, LineT]):
                 line = existing_lines.get(line_id)
                 if line is None:
                     raise ValueError(f"line {line_id} does not belong to this document")
+                if self.movement and "warehouse_id" in line_patch:
+                    if line_patch["warehouse_id"] is None:
+                        line_patch.pop("warehouse_id")  # 空なら今の倉庫のまま
+                    elif db.get(models.Warehouse, line_patch["warehouse_id"]) is None:
+                        raise ValueError("指定した倉庫が見つかりません")
                 for key, value in line_patch.items():
+                    if key not in type(line).__table__.columns:  # type: ignore[attr-defined]
+                        continue  # この伝票の明細にない項目（例: 見積の倉庫）は無視する
                     setattr(line, key, value)
                 if self.lines_have_qty:
                     if line.quantity is not None and line.unit_price is not None:
@@ -518,6 +652,10 @@ class DocumentCRUD(Generic[HeaderT, LineT]):
                 db.rollback()
                 raise
 
+        if self.movement:
+            # 数量・商品・倉庫の訂正や、取消・下書きへの変更を在庫数に反映する
+            db.flush()
+            sync_inventory_movements(db, self.movement, header, getattr(header, self.lines_relationship))
         db.commit()
         return self.get(db, document_id)
 
@@ -548,12 +686,12 @@ purchase_order_crud: DocumentCRUD[models.PurchaseOrder, models.PurchaseOrderLine
 )
 purchase_crud: DocumentCRUD[models.Purchase, models.PurchaseLine] = DocumentCRUD(
     models.Purchase, models.PurchaseLine, "purchase_id", "purchase_no", "PU", "lines",
-    date_field="purchase_date", status_field="status",
+    date_field="purchase_date", status_field="status", movement="purchase",
     upstream=UpstreamSpec("purchase_order_line_id", models.PurchaseOrderLine, "purchase_order_id", models.PurchaseOrder, "status"),
 )
 sales_crud: DocumentCRUD[models.Sales, models.SalesLine] = DocumentCRUD(
     models.Sales, models.SalesLine, "sales_id", "sales_no", "SA", "lines",
-    date_field="sales_date", status_field="status",
+    date_field="sales_date", status_field="status", movement="sales",
     upstream=UpstreamSpec("order_line_id", models.OrderLine, "order_id", models.Order, "status"),
 )
 receipt_crud: DocumentCRUD[models.Receipt, models.ReceiptLine] = DocumentCRUD(
@@ -780,8 +918,8 @@ def inventory_availability(db: Session, *, keyword: str | None = None) -> list[d
     - 見積時点の引当: その見積明細にまだ残（受注していない数量）がある分だけ数える。
       受注に進んだ分は、受注時点の引当に役目を引き継いだものとして外す。
     - 受注時点の引当: その受注明細にまだ売上にしていない数量がある分だけ数える。
-    - 売上時点の引当: 売上が取り消されていなければ全量を数える
-      （出荷による在庫の払い出しは「在庫の受払」機能で扱う予定のため、ここでは引当として残す）。
+    - 売上時点の引当: 売上が下書きの間だけ数える。売上を確定すると在庫数そのものが減る
+      （在庫の受払）ため、引当としては外す。
     - 入荷予定: 取り消されていない発注の発注残。
     """
     on_hand: dict[int, Decimal] = defaultdict(Decimal)
@@ -825,7 +963,7 @@ def inventory_availability(db: Session, *, keyword: str | None = None) -> list[d
         .join(models.SalesLine, models.SalesLine.id == models.InventoryAllocation.sales_line_id)
         .join(models.Sales, models.Sales.id == models.SalesLine.sales_id)
         .where(models.InventoryAllocation.allocation_stage == models.AllocationStage.sales)
-        .where(models.Sales.status != models.DocumentStatus.cancelled)
+        .where(models.Sales.status == models.DocumentStatus.draft)
     ).all():
         allocated[pid] += Decimal(qty)
 

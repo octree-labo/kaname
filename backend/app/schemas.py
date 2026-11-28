@@ -228,6 +228,7 @@ class QuotationConfirmOrdersRequest(CamelModel):
 class ProductLinePatch(CamelModel):
     id: int
     product_id: int | None = None
+    warehouse_id: int | None = None  # 仕入・売上の明細だけが使う
     quantity: Decimal | None = None
     unit_price: Decimal | None = None
     amount: Decimal | None = None
@@ -360,6 +361,7 @@ class PurchaseOrderPatch(CamelModel):
 class PurchaseLineIn(CamelModel):
     purchase_order_line_id: int | None = None
     product_id: int
+    warehouse_id: int | None = None  # 空なら既定の倉庫（いちばん古い倉庫）
     quantity: Decimal | None = None
     unit_price: Decimal | None = None
     amount: Decimal | None = None
@@ -408,6 +410,7 @@ class PurchasePatch(CamelModel):
 class SalesLineIn(CamelModel):
     order_line_id: int | None = None
     product_id: int
+    warehouse_id: int | None = None  # 空なら既定の倉庫（いちばん古い倉庫）
     quantity: Decimal | None = None
     unit_price: Decimal | None = None
     amount: Decimal | None = None
@@ -599,3 +602,20 @@ class OpenLineOut(CamelModel):
     amount: Decimal
     remaining_qty: Decimal | None = None
     remaining_amount: Decimal | None = None
+
+
+class InventoryMovementOut(CamelModel):
+    id: int
+    product_id: int
+    product_code: str | None = None
+    product_name: str | None = None
+    warehouse_id: int
+    warehouse_code: str | None = None
+    warehouse_name: str | None = None
+    quantity: Decimal
+    movement_type: str
+    document_id: int | None = None
+    document_no: str | None = None
+    document_date: date | None = None
+    migrated: bool
+    created_at: datetime

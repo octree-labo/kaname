@@ -61,6 +61,12 @@ def list_availability(keyword: str | None = None, db: Session = Depends(get_db))
     return crud.inventory_availability(db, keyword=keyword)
 
 
+@router.get("/movements", response_model=list[schemas.InventoryMovementOut])
+def list_movements(product_id: int | None = None, warehouse_id: int | None = None, db: Session = Depends(get_db)):
+    """在庫の受払履歴（新しい順に 200 件）。"""
+    return crud.list_inventory_movements(db, product_id=product_id, warehouse_id=warehouse_id)
+
+
 _STAGE_LINE = {
     "quotation": ("quotation_line_id", models.QuotationLine),
     "order": ("order_line_id", models.OrderLine),

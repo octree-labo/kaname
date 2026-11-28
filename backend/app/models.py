@@ -236,6 +236,22 @@ class InventoryAllocation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class InventoryMovement(Base):
+    """在庫の受払（入庫はプラス、出庫はマイナス）。仕入・売上の確定/訂正/取消のたびに差分を記録する。"""
+
+    __tablename__ = "inventory_movements"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    product_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("products.id"), nullable=False)
+    warehouse_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("warehouses.id"), nullable=False)
+    quantity: Mapped[Decimal] = mapped_column(Numeric(14, 3), nullable=False)
+    movement_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    purchase_line_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("purchase_lines.id"))
+    sales_line_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("sales_lines.id"))
+    migrated: Mapped[bool] = mapped_column(nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 # ------------------------------------------------------------
 # 見積
 # ------------------------------------------------------------
@@ -383,6 +399,7 @@ class PurchaseLine(Base):
     line_no: Mapped[int] = mapped_column(nullable=False)
     purchase_order_line_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("purchase_order_lines.id"))
     product_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("products.id"), nullable=False)
+    warehouse_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("warehouses.id"))  # 入庫する倉庫
     quantity: Mapped[Decimal | None] = mapped_column(Numeric(14, 3))
     unit_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     amount: Mapped[Decimal] = mapped_column(Numeric(16, 0), nullable=False)
@@ -420,6 +437,7 @@ class SalesLine(Base):
     line_no: Mapped[int] = mapped_column(nullable=False)
     order_line_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("order_lines.id"))
     product_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("products.id"), nullable=False)
+    warehouse_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("warehouses.id"))  # 出庫する倉庫
     quantity: Mapped[Decimal | None] = mapped_column(Numeric(14, 3))
     unit_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     amount: Mapped[Decimal] = mapped_column(Numeric(16, 0), nullable=False)
