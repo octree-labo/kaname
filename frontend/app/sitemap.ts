@@ -5,7 +5,7 @@ import type { MetadataRoute } from "next"
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = "https://kaname.ajesta.work"
   return [
-    { url: `${base}/lp` },
+    { url: `${base}/lp`, lastModified: "2026-11-28" },
     { url: `${base}/privacy` },
   ]
 }
