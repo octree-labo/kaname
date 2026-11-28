@@ -1,0 +1,97 @@
+User-agent: *
+Allow: /lp
+Allow: /privacy
+Disallow: /
+
+# --- AI / LLM crawlers (answer engines, chat assistants) ---
+User-agent: GPTBot
+Allow: /lp
+Allow: /privacy
+Disallow: /
+
+User-agent: ChatGPT-User
+Allow: /lp
+Allow: /privacy
+Disallow: /
+
+User-agent: OAI-SearchBot
+Allow: /lp
+Allow: /privacy
+Disallow: /
+
+User-agent: ClaudeBot
+Allow: /lp
+Allow: /privacy
+Disallow: /
+
+User-agent: Claude-Web
+Allow: /lp
+Allow: /privacy
+Disallow: /
+
+User-agent: anthropic-ai
+Allow: /lp
+Allow: /privacy
+Disallow: /
+
+User-agent: PerplexityBot
+Allow: /lp
+Allow: /privacy
+Disallow: /
+
+User-agent: Perplexity-User
+Allow: /lp
+Allow: /privacy
+Disallow: /
+
+User-agent: Google-Extended
+Allow: /lp
+Allow: /privacy
+Disallow: /
+
+User-agent: GoogleOther
+Allow: /lp
+Allow: /privacy
+Disallow: /
+
+User-agent: Bingbot
+Allow: /lp
+Allow: /privacy
+Disallow: /
+
+User-agent: cohere-ai
+Allow: /lp
+Allow: /privacy
+Disallow: /
+
+User-agent: Meta-ExternalAgent
+Allow: /lp
+Allow: /privacy
+Disallow: /
+
+User-agent: Applebot
+Allow: /lp
+Allow: /privacy
+Disallow: /
+
+User-agent: Applebot-Extended
+Allow: /lp
+Allow: /privacy
+Disallow: /
+
+User-agent: CCBot
+Allow: /lp
+Allow: /privacy
+Disallow: /
+
+User-agent: Bytespider
+Allow: /lp
+Allow: /privacy
+Disallow: /
+
+User-agent: Amazonbot
+Allow: /lp
+Allow: /privacy
+Disallow: /
+
+Sitemap: https://kaname.ajesta.work/sitemap.xml
