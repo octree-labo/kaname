@@ -143,7 +143,14 @@ export default function InventoryPage() {
     {
       key: "migrated",
       label: "備考",
-      render: (r) => (r.migrated ? "移行前の伝票（在庫数には反映済みとして記録）" : ""),
+      render: (r) =>
+        r.migrated ? (
+          <span className="text-xs text-slate-500" title="この機能を入れる前の伝票です。在庫数は変えず、履歴だけを記録しています。">
+            移行前
+          </span>
+        ) : (
+          ""
+        ),
     },
   ];
 
