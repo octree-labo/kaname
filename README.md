@@ -78,6 +78,24 @@ cp .env.local.example .env.local
 npm run dev
 ```
 
+### DB の変更（マイグレーション）
+
+テーブルやビューの定義を変えたときは、`db/schema.sql` を直したうえで、既存の DB に流す SQL を `db/migrations/` に置く（日付から始まるファイル名、何度流しても同じ結果になる書き方にする）。
+
+```bash
+psql "$DATABASE_URL_WITHOUT_DRIVER" -f db/migrations/20261128_remaining_exclude_cancelled.sql
+```
+
+### 動作確認スクリプト
+
+伝票チェーン・残数・引当の動きを確かめるスクリプト。**名前が `_test` で終わる空の DB でだけ動く**（データを作るため）。
+
+```bash
+createdb kaname_test
+DATABASE_URL=postgresql+psycopg://kaname:...@localhost:5432/kaname_test ./venv/bin/python scripts/init_db.py
+DATABASE_URL=postgresql+psycopg://kaname:...@localhost:5432/kaname_test ./venv/bin/python tests/check_document_chain.py
+```
+
 ### サンプルデータ
 
 各テーブル100件規模のデモデータを投入する場合:

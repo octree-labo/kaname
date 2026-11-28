@@ -337,3 +337,33 @@ export interface AdminUserOut {
   status: UserStatus;
   createdAt: string;
 }
+
+export interface InventoryAvailabilityOut {
+  productId: number;
+  productCode: string;
+  productName: string;
+  unit: string;
+  onHand: string;
+  allocated: string;
+  incoming: string;
+  available: string;
+}
+
+/** 残のある上位明細（下位伝票の作成で「上位伝票から取り込む」に使う） */
+export interface OpenLineOut {
+  lineId: number;
+  documentId: number;
+  documentNo: string;
+  documentDate: string;
+  partnerId: number;
+  partnerName: string | null;
+  lineNo: number;
+  productId: number;
+  productCode: string | null;
+  productName: string | null;
+  quantity: string | null;
+  unitPrice: string | null;
+  amount: string;
+  remainingQty: string | null;
+  remainingAmount: string | null;
+}
