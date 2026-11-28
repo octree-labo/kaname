@@ -266,6 +266,7 @@ CREATE TABLE purchase_lines (
   line_no                  INT NOT NULL,
   purchase_order_line_id   BIGINT REFERENCES purchase_order_lines(id),  -- NULL可: 発注なし直接仕入
   product_id               BIGINT NOT NULL REFERENCES products(id),
+  warehouse_id             BIGINT REFERENCES warehouses(id),  -- 入庫する倉庫
   quantity                 NUMERIC(14,3),
   unit_price               NUMERIC(14,2),
   amount                   NUMERIC(16,0) NOT NULL,
@@ -301,6 +302,7 @@ CREATE TABLE sales_lines (
   line_no         INT NOT NULL,
   order_line_id   BIGINT REFERENCES order_lines(id),  -- NULL可: 受注なし直接売上
   product_id      BIGINT NOT NULL REFERENCES products(id),
+  warehouse_id    BIGINT REFERENCES warehouses(id),  -- 出庫する倉庫
   quantity        NUMERIC(14,3),
   unit_price      NUMERIC(14,2),
   amount          NUMERIC(16,0) NOT NULL,
@@ -336,6 +338,27 @@ CREATE TABLE inventory_allocations (
     (allocation_stage = 'sales'     AND sales_line_id     IS NOT NULL AND quotation_line_id IS NULL AND order_line_id IS NULL)
   )
 );
+
+-- 在庫の受払（入庫・出庫）の履歴。仕入・売上の確定/訂正/取消のたびに差分を記録し、
+-- 同じ数だけ inventory_stocks.quantity_on_hand を増減させる。
+CREATE TABLE inventory_movements (
+  id                BIGSERIAL PRIMARY KEY,
+  product_id        BIGINT NOT NULL REFERENCES products(id),
+  warehouse_id      BIGINT NOT NULL REFERENCES warehouses(id),
+  quantity          NUMERIC(14,3) NOT NULL,          -- 入庫はプラス、出庫はマイナス
+  movement_type     VARCHAR(20) NOT NULL,            -- purchase（仕入）/ sales（売上）
+  purchase_line_id  BIGINT REFERENCES purchase_lines(id),
+  sales_line_id     BIGINT REFERENCES sales_lines(id),
+  migrated          BOOLEAN NOT NULL DEFAULT FALSE,  -- 移行時の既存分（在庫数には反映していない）
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT chk_movement_source CHECK (
+    (movement_type = 'purchase' AND purchase_line_id IS NOT NULL AND sales_line_id IS NULL) OR
+    (movement_type = 'sales'    AND sales_line_id    IS NOT NULL AND purchase_line_id IS NULL)
+  )
+);
+CREATE INDEX idx_inventory_movements_purchase_line ON inventory_movements(purchase_line_id);
+CREATE INDEX idx_inventory_movements_sales_line    ON inventory_movements(sales_line_id);
+CREATE INDEX idx_inventory_movements_product       ON inventory_movements(product_id, warehouse_id);
 
 -- ---------------- 入金 ----------------
 CREATE TABLE receipts (

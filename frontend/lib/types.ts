@@ -367,3 +367,20 @@ export interface OpenLineOut {
   remainingQty: string | null;
   remainingAmount: string | null;
 }
+
+export interface InventoryMovementOut {
+  id: number;
+  productId: number;
+  productCode: string | null;
+  productName: string | null;
+  warehouseId: number;
+  warehouseCode: string | null;
+  warehouseName: string | null;
+  quantity: string;
+  movementType: "purchase" | "sales" | string;
+  documentId: number | null;
+  documentNo: string | null;
+  documentDate: string | null;
+  migrated: boolean;
+  createdAt: string;
+}

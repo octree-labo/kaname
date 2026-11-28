@@ -10,10 +10,12 @@ import { ProductLineFields } from "@/components/ProductLineFields";
 import { buildProductLinePayload, type ProductLineValue } from "@/lib/lineHelpers";
 import { useGuestGuard } from "@/lib/useGuestGuard";
 import { GuestBlockedModal } from "@/components/GuestBlockedModal";
+import { WarehouseSelect } from "@/components/WarehouseSelect";
 
 interface DocLine {
   id: number;
   productId?: number;
+  warehouseId?: number | null;
   quantity?: string | null;
   unitPrice?: string | null;
   amount: string;
@@ -29,6 +31,7 @@ interface DocDetail {
 
 interface ProductLineEdit extends ProductLineValue {
   id: number;
+  warehouseId: string;
 }
 
 interface AmountLineEdit {
@@ -66,6 +69,7 @@ export function DocumentEditPage({ config }: { config: DocumentModuleConfig }) {
           quantity: l.quantity ?? "",
           unitPrice: l.unitPrice ?? "",
           amount: l.amount,
+          warehouseId: l.warehouseId != null ? String(l.warehouseId) : "",
         }))
       );
     } else {
@@ -84,7 +88,11 @@ export function DocumentEditPage({ config }: { config: DocumentModuleConfig }) {
     try {
       const lines =
         config.lineKind === "product"
-          ? productLines.map((l) => ({ id: l.id, ...buildProductLinePayload(l) }))
+          ? productLines.map((l) => ({
+              id: l.id,
+              ...buildProductLinePayload(l),
+              ...(config.hasWarehouse && l.warehouseId ? { warehouseId: Number(l.warehouseId) } : {}),
+            }))
           : amountLines.map((l) => ({ id: l.id, amount: Number(l.amount) }));
 
       const body: Record<string, unknown> = {
@@ -109,6 +117,7 @@ export function DocumentEditPage({ config }: { config: DocumentModuleConfig }) {
       <h1 className="text-xl font-semibold text-slate-900">{config.label} 編集</h1>
       <p className="mt-1 text-xs text-slate-600">
         既存明細の商品・数量・単価（または金額）のみ変更できます。明細の追加・削除には対応していません。
+        {config.hasWarehouse && "仕入・売上は、確定・訂正・取消に合わせて在庫数が自動で増減します（下書きの間は動きません）。"}
         数量・単価を両方入力すると金額は取引先の丸め区分で自動計算されます。
       </p>
 
@@ -145,9 +154,23 @@ export function DocumentEditPage({ config }: { config: DocumentModuleConfig }) {
                     <ProductLineFields
                       value={line}
                       onChange={(next) =>
-                        setProductLines((prev) => prev.map((l, idx) => (idx === i ? { ...next, id: l.id } : l)))
+                        setProductLines((prev) =>
+                          prev.map((l, idx) => (idx === i ? { ...next, id: l.id, warehouseId: l.warehouseId } : l))
+                        )
                       }
                     />
+                    {config.hasWarehouse && (
+                      <div className="w-36">
+                        <label className="block text-xs text-slate-600">{config.warehouseLabel}</label>
+                        <WarehouseSelect
+                          value={line.warehouseId}
+                          emptyLabel="（変更しない）"
+                          onChange={(v) =>
+                            setProductLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, warehouseId: v } : l)))
+                          }
+                        />
+                      </div>
+                    )}
                   </div>
                 ))
               : amountLines.map((line, i) => (

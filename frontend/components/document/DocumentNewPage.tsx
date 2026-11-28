@@ -10,6 +10,7 @@ import { buildProductLinePayload, type ProductLineValue } from "@/lib/lineHelper
 import { useGuestGuard } from "@/lib/useGuestGuard";
 import { GuestBlockedModal } from "@/components/GuestBlockedModal";
 import { UpstreamImport } from "@/components/document/UpstreamImport";
+import { WarehouseSelect } from "@/components/WarehouseSelect";
 import type { OpenLineOut } from "@/lib/types";
 
 function today(): string {
@@ -18,6 +19,7 @@ function today(): string {
 
 interface ProductLineRow extends ProductLineValue {
   upstreamLineId: string;
+  warehouseId?: string;
   /** 取り込んだ上位明細の表示（例: SO000012-1） */
   upstreamText?: string;
 }
@@ -100,6 +102,7 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
         config.lineKind === "product"
           ? productLines.map((l) => ({
               ...buildProductLinePayload(l),
+              ...(config.hasWarehouse && l.warehouseId ? { warehouseId: Number(l.warehouseId) } : {}),
               ...(config.upstreamLineField && l.upstreamLineId
                 ? { [config.upstreamLineField]: Number(l.upstreamLineId) }
                 : {}),
@@ -170,11 +173,24 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
                       onChange={(next) =>
                         setProductLines((prev) =>
                           prev.map((l, idx) =>
-                            idx === i ? { ...next, upstreamLineId: l.upstreamLineId, upstreamText: l.upstreamText } : l
+                            idx === i
+                              ? { ...next, upstreamLineId: l.upstreamLineId, upstreamText: l.upstreamText, warehouseId: l.warehouseId }
+                              : l
                           )
                         )
                       }
                     />
+                    {config.hasWarehouse && (
+                      <div className="w-36">
+                        <label className="block text-xs text-slate-600">{config.warehouseLabel}</label>
+                        <WarehouseSelect
+                          value={line.warehouseId ?? ""}
+                          onChange={(v) =>
+                            setProductLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, warehouseId: v } : l)))
+                          }
+                        />
+                      </div>
+                    )}
                     {config.upstreamLineField && (
                       <div className="w-40">
                         <label className="block text-xs text-slate-600">{config.upstreamLabel}</label>
