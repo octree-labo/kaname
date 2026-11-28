@@ -18,6 +18,10 @@ export interface DocumentModuleConfig {
   lineKind: LineKind;
   upstreamLineField?: string;
   upstreamLabel?: string;
+  /** 「上位伝票から取り込む」で使う /api/open-lines/{kind} の kind */
+  openLinesKind?: string;
+  /** 取り込み元の伝票の名前（例: 受注） */
+  upstreamDocLabel?: string;
 }
 
 export const ordersModule: DocumentModuleConfig = {
@@ -32,6 +36,8 @@ export const ordersModule: DocumentModuleConfig = {
   lineKind: "product",
   upstreamLineField: "quotationLineId",
   upstreamLabel: "見積明細ID（任意）",
+  openLinesKind: "quotation",
+  upstreamDocLabel: "見積",
 };
 
 export const purchaseOrdersModule: DocumentModuleConfig = {
@@ -46,6 +52,8 @@ export const purchaseOrdersModule: DocumentModuleConfig = {
   lineKind: "product",
   upstreamLineField: "orderLineId",
   upstreamLabel: "受注明細ID（任意）",
+  openLinesKind: "order_for_purchase",
+  upstreamDocLabel: "受注",
 };
 
 export const purchasesModule: DocumentModuleConfig = {
@@ -60,6 +68,8 @@ export const purchasesModule: DocumentModuleConfig = {
   lineKind: "product",
   upstreamLineField: "purchaseOrderLineId",
   upstreamLabel: "発注明細ID（任意）",
+  openLinesKind: "purchase_order",
+  upstreamDocLabel: "発注",
 };
 
 export const salesModule: DocumentModuleConfig = {
@@ -74,6 +84,8 @@ export const salesModule: DocumentModuleConfig = {
   lineKind: "product",
   upstreamLineField: "orderLineId",
   upstreamLabel: "受注明細ID（任意）",
+  openLinesKind: "order_for_sales",
+  upstreamDocLabel: "受注",
 };
 
 export const receiptsModule: DocumentModuleConfig = {
@@ -88,6 +100,8 @@ export const receiptsModule: DocumentModuleConfig = {
   lineKind: "amount",
   upstreamLineField: "salesLineId",
   upstreamLabel: "売上明細ID（任意）",
+  openLinesKind: "sales",
+  upstreamDocLabel: "売上",
 };
 
 export const paymentsModule: DocumentModuleConfig = {
@@ -102,4 +116,6 @@ export const paymentsModule: DocumentModuleConfig = {
   lineKind: "amount",
   upstreamLineField: "purchaseLineId",
   upstreamLabel: "仕入明細ID（任意）",
+  openLinesKind: "purchase",
+  upstreamDocLabel: "仕入",
 };

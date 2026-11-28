@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date
 from decimal import ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP, Decimal
@@ -341,6 +342,24 @@ def list_warehouses(db: Session) -> list[models.Warehouse]:
 # 伝票チェーン共通（見積/受注/発注/仕入/売上/入金/支払）
 # ------------------------------------------------------------
 @dataclass
+class UpstreamSpec:
+    """明細が参照する「1つ上位の明細」の定義。
+
+    例: 売上明細 → 受注明細（line_field="order_line_id"）。
+    same_partner=True なら、上位伝票と同じ取引先でなければ連携できない
+    （受注→発注は得意先と仕入先が別になるため False）。
+    """
+
+    line_field: str  # 下位明細側の列名。例: "order_line_id"
+    line_model: type
+    header_fk: str  # 上位明細から上位ヘッダへの列名。例: "order_id"
+    header_model: type
+    status_field: str  # 上位ヘッダの状態列
+    same_partner: bool = True
+    check_product: bool = True  # 入金/支払（金額のみ）以外は商品の一致を確認する
+
+
+@dataclass
 class DocumentCRUD(Generic[HeaderT, LineT]):
     header_model: type[HeaderT]
     line_model: type[LineT]
@@ -351,6 +370,43 @@ class DocumentCRUD(Generic[HeaderT, LineT]):
     date_field: str  # 例: "quotation_date"
     status_field: str  # 例: "status" or "approval_status"
     lines_have_qty: bool = True  # False の場合は明細が金額のみ（入金/支払）
+    upstream: UpstreamSpec | None = None
+
+    def validate_upstream(
+        self, db: Session, partner_id: int, lines_data: list[dict[str, Any]], *, check_status: bool = True
+    ) -> None:
+        """上位明細への連携が正しいかを確認する。
+
+        存在しない明細・取り消し済みの伝票・別の取引先の伝票・別の商品の明細に
+        つなぐと残数がおかしくなるため、登録前に止める。
+        """
+        spec = self.upstream
+        if spec is None:
+            return
+        ids = {line.get(spec.line_field) for line in lines_data} - {None}
+        if not ids:
+            return
+        rows = db.execute(
+            select(spec.line_model, spec.header_model)
+            .join(spec.header_model, getattr(spec.line_model, spec.header_fk) == spec.header_model.id)
+            .where(spec.line_model.id.in_(ids))
+        ).all()
+        found = {line.id: (line, header) for line, header in rows}
+        for i, line in enumerate(lines_data, start=1):
+            up_id = line.get(spec.line_field)
+            if up_id is None:
+                continue
+            pair = found.get(up_id)
+            if pair is None:
+                raise ValueError(f"{i}行目: 連携先の明細（ID {up_id}）が見つかりません")
+            up_line, up_header = pair
+            status = getattr(up_header, spec.status_field)
+            if check_status and getattr(status, "value", status) in ("cancelled", "rejected"):
+                raise ValueError(f"{i}行目: 連携先の伝票は取り消し済みです")
+            if spec.same_partner and up_header.partner_id != partner_id:
+                raise ValueError(f"{i}行目: 連携先の伝票と取引先が違います")
+            if spec.check_product and line.get("product_id") is not None and up_line.product_id != line["product_id"]:
+                raise ValueError(f"{i}行目: 連携先の明細と商品が違います")
 
     def list(
         self,
@@ -399,6 +455,9 @@ class DocumentCRUD(Generic[HeaderT, LineT]):
         return obj
 
     def create(self, db: Session, header_data: dict[str, Any], lines_data: list[dict[str, Any]], created_by: int | None) -> HeaderT:
+        if not lines_data:
+            raise ValueError("明細を 1 行以上入力してください")
+        self.validate_upstream(db, header_data["partner_id"], lines_data)
         doc_no = self._next_no(db)
         header_kwargs = dict(header_data)
         if hasattr(self.header_model, "created_by"):
@@ -446,6 +505,19 @@ class DocumentCRUD(Generic[HeaderT, LineT]):
                     elif "amount" in line_patch and line_patch["amount"] is not None:
                         line.amount = _to_integer_amount(line_patch["amount"])
 
+        if self.upstream is not None and ("partner_id" in header_data or lines_data):
+            # 取引先や商品を変えたことで、上位伝票との連携が食い違わないかを確認する。
+            # 上位伝票があとから取り消された場合でも、この伝票の訂正・取消はできるように状態は見ない。
+            current = [
+                {self.upstream.line_field: getattr(line, self.upstream.line_field), "product_id": getattr(line, "product_id", None)}
+                for line in getattr(header, self.lines_relationship)
+            ]
+            try:
+                self.validate_upstream(db, header.partner_id, current, check_status=False)  # type: ignore[attr-defined]
+            except ValueError:
+                db.rollback()
+                raise
+
         db.commit()
         return self.get(db, document_id)
 
@@ -466,26 +538,33 @@ quotation_crud: DocumentCRUD[models.Quotation, models.QuotationLine] = DocumentC
 order_crud: DocumentCRUD[models.Order, models.OrderLine] = DocumentCRUD(
     models.Order, models.OrderLine, "order_id", "order_no", "SO", "lines",
     date_field="order_date", status_field="status",
+    upstream=UpstreamSpec("quotation_line_id", models.QuotationLine, "quotation_id", models.Quotation, "approval_status"),
 )
 purchase_order_crud: DocumentCRUD[models.PurchaseOrder, models.PurchaseOrderLine] = DocumentCRUD(
     models.PurchaseOrder, models.PurchaseOrderLine, "purchase_order_id", "purchase_order_no", "PO", "lines",
     date_field="order_date", status_field="status",
+    # 受注（得意先）→ 発注（仕入先）なので取引先は一致しない
+    upstream=UpstreamSpec("order_line_id", models.OrderLine, "order_id", models.Order, "status", same_partner=False),
 )
 purchase_crud: DocumentCRUD[models.Purchase, models.PurchaseLine] = DocumentCRUD(
     models.Purchase, models.PurchaseLine, "purchase_id", "purchase_no", "PU", "lines",
     date_field="purchase_date", status_field="status",
+    upstream=UpstreamSpec("purchase_order_line_id", models.PurchaseOrderLine, "purchase_order_id", models.PurchaseOrder, "status"),
 )
 sales_crud: DocumentCRUD[models.Sales, models.SalesLine] = DocumentCRUD(
     models.Sales, models.SalesLine, "sales_id", "sales_no", "SA", "lines",
     date_field="sales_date", status_field="status",
+    upstream=UpstreamSpec("order_line_id", models.OrderLine, "order_id", models.Order, "status"),
 )
 receipt_crud: DocumentCRUD[models.Receipt, models.ReceiptLine] = DocumentCRUD(
     models.Receipt, models.ReceiptLine, "receipt_id", "receipt_no", "RC", "lines",
     date_field="receipt_date", status_field="status", lines_have_qty=False,
+    upstream=UpstreamSpec("sales_line_id", models.SalesLine, "sales_id", models.Sales, "status", check_product=False),
 )
 payment_crud: DocumentCRUD[models.Payment, models.PaymentLine] = DocumentCRUD(
     models.Payment, models.PaymentLine, "payment_id", "payment_no", "PM", "lines",
     date_field="payment_date", status_field="status", lines_have_qty=False,
+    upstream=UpstreamSpec("purchase_line_id", models.PurchaseLine, "purchase_id", models.Purchase, "status", check_product=False),
 )
 
 
@@ -585,3 +664,197 @@ def purchase_order_lines_with_remaining(db: Session, purchase_order_id: int) -> 
 
 def _row_to_dict(row: Any) -> dict:
     return {c.key: getattr(row, c.key) for c in row.__table__.columns}
+
+
+# ------------------------------------------------------------
+# 残のある上位明細（下位伝票の「上位伝票から取り込む」用）
+# ------------------------------------------------------------
+@dataclass
+class OpenLineSource:
+    line_model: type
+    header_fk: str
+    header_model: type
+    no_field: str
+    date_field: str
+    status_field: str
+    view_model: type
+    view_line_field: str
+    remaining_field: str
+    is_amount: bool = False
+
+
+OPEN_LINE_SOURCES: dict[str, OpenLineSource] = {
+    # 受注の作成で使う: 見積の残
+    "quotation": OpenLineSource(
+        models.QuotationLine, "quotation_id", models.Quotation, "quotation_no", "quotation_date", "approval_status",
+        models.QuotationRemaining, "quotation_line_id", "remaining_qty",
+    ),
+    # 発注の作成で使う: 受注のうち、まだ発注していない数量
+    "order_for_purchase": OpenLineSource(
+        models.OrderLine, "order_id", models.Order, "order_no", "order_date", "status",
+        models.OrderRemainingForPurchase, "order_line_id", "remaining_qty",
+    ),
+    # 売上の作成で使う: 受注のうち、まだ売上にしていない数量
+    "order_for_sales": OpenLineSource(
+        models.OrderLine, "order_id", models.Order, "order_no", "order_date", "status",
+        models.OrderRemainingForSales, "order_line_id", "remaining_qty",
+    ),
+    # 仕入の作成で使う: 発注残
+    "purchase_order": OpenLineSource(
+        models.PurchaseOrderLine, "purchase_order_id", models.PurchaseOrder, "purchase_order_no", "order_date", "status",
+        models.PurchaseOrderRemaining, "purchase_order_line_id", "remaining_qty",
+    ),
+    # 入金の作成で使う: 未入金
+    "sales": OpenLineSource(
+        models.SalesLine, "sales_id", models.Sales, "sales_no", "sales_date", "status",
+        models.SalesRemainingForReceipt, "sales_line_id", "remaining_amount", is_amount=True,
+    ),
+    # 支払の作成で使う: 未払
+    "purchase": OpenLineSource(
+        models.PurchaseLine, "purchase_id", models.Purchase, "purchase_no", "purchase_date", "status",
+        models.PurchaseRemainingForPayment, "purchase_line_id", "remaining_amount", is_amount=True,
+    ),
+}
+
+
+def list_open_lines(db: Session, kind: str, *, partner_id: int | None = None, limit: int = 200) -> list[dict]:
+    """残（数量または金額）が残っている上位明細を、古い伝票から順に返す。"""
+    src = OPEN_LINE_SOURCES[kind]
+    line_m, header_m, view_m = src.line_model, src.header_model, src.view_model
+    status_col = getattr(header_m, src.status_field)
+    remaining_col = getattr(view_m, src.remaining_field)
+    stmt = (
+        select(line_m, header_m, remaining_col)
+        .join(header_m, getattr(line_m, src.header_fk) == header_m.id)
+        .join(view_m, getattr(view_m, src.view_line_field) == line_m.id)
+        .where(status_col != ("rejected" if src.status_field == "approval_status" else "cancelled"))
+        .where(remaining_col > 0)
+    )
+    if partner_id is not None:
+        stmt = stmt.where(header_m.partner_id == partner_id)
+    stmt = stmt.order_by(getattr(header_m, src.date_field), header_m.id, line_m.line_no).limit(limit)
+    rows = db.execute(stmt).all()
+
+    attach_partner_names(db, [r[1] for r in rows])
+    attach_product_names(db, [r[0] for r in rows])
+    return [
+        {
+            "line_id": line.id,
+            "document_id": header.id,
+            "document_no": getattr(header, src.no_field),
+            "document_date": getattr(header, src.date_field),
+            "partner_id": header.partner_id,
+            "partner_name": header.partner_name,  # type: ignore[attr-defined]
+            "line_no": line.line_no,
+            "product_id": line.product_id,
+            "product_code": line.product_code,  # type: ignore[attr-defined]
+            "product_name": line.product_name,  # type: ignore[attr-defined]
+            "quantity": line.quantity,
+            "unit_price": line.unit_price,
+            "amount": line.amount,
+            "remaining_qty": None if src.is_amount else remaining,
+            "remaining_amount": remaining if src.is_amount else None,
+        }
+        for line, header, remaining in rows
+    ]
+
+
+# ------------------------------------------------------------
+# 使える在庫の見込み（在庫 − 引当 + 入荷予定）
+# ------------------------------------------------------------
+def _sum_allocations_by_line(db: Session, stage: models.AllocationStage, line_attr: str) -> dict[int, tuple[int, Decimal]]:
+    out: dict[int, tuple[int, Decimal]] = {}
+    for a in db.execute(
+        select(models.InventoryAllocation).where(models.InventoryAllocation.allocation_stage == stage)
+    ).scalars():
+        line_id = getattr(a, line_attr)
+        pid, total = out.get(line_id, (a.product_id, Decimal(0)))
+        out[line_id] = (pid, total + Decimal(a.quantity))
+    return out
+
+
+def inventory_availability(db: Session, *, keyword: str | None = None) -> list[dict]:
+    """商品ごとに「いまある在庫・引当中・入荷予定・使える見込み」を計算する。
+
+    引当は時点ごとに別々に持つが、二重に数えないように次の考え方で数える。
+    - 見積時点の引当: その見積明細にまだ残（受注していない数量）がある分だけ数える。
+      受注に進んだ分は、受注時点の引当に役目を引き継いだものとして外す。
+    - 受注時点の引当: その受注明細にまだ売上にしていない数量がある分だけ数える。
+    - 売上時点の引当: 売上が取り消されていなければ全量を数える
+      （出荷による在庫の払い出しは「在庫の受払」機能で扱う予定のため、ここでは引当として残す）。
+    - 入荷予定: 取り消されていない発注の発注残。
+    """
+    on_hand: dict[int, Decimal] = defaultdict(Decimal)
+    for product_id, qty in db.execute(
+        select(models.InventoryStock.product_id, models.InventoryStock.quantity_on_hand)
+    ).all():
+        on_hand[product_id] += Decimal(qty or 0)
+
+    allocated: dict[int, Decimal] = defaultdict(Decimal)
+
+    q_alloc = _sum_allocations_by_line(db, models.AllocationStage.quotation, "quotation_line_id")
+    if q_alloc:
+        rem = {
+            r.quotation_line_id: Decimal(r.remaining_qty or 0)
+            for r in db.execute(
+                select(models.QuotationRemaining)
+                .join(models.Quotation, models.Quotation.id == models.QuotationRemaining.quotation_id)
+                .where(models.QuotationRemaining.quotation_line_id.in_(q_alloc.keys()))
+                .where(models.Quotation.approval_status != models.ApprovalStatus.rejected)
+            ).scalars()
+        }
+        for line_id, (pid, total) in q_alloc.items():
+            allocated[pid] += min(total, rem.get(line_id, Decimal(0)))
+
+    o_alloc = _sum_allocations_by_line(db, models.AllocationStage.order, "order_line_id")
+    if o_alloc:
+        rem = {
+            r.order_line_id: Decimal(r.remaining_qty or 0)
+            for r in db.execute(
+                select(models.OrderRemainingForSales)
+                .join(models.Order, models.Order.id == models.OrderRemainingForSales.order_id)
+                .where(models.OrderRemainingForSales.order_line_id.in_(o_alloc.keys()))
+                .where(models.Order.status != models.DocumentStatus.cancelled)
+            ).scalars()
+        }
+        for line_id, (pid, total) in o_alloc.items():
+            allocated[pid] += min(total, rem.get(line_id, Decimal(0)))
+
+    for pid, qty in db.execute(
+        select(models.InventoryAllocation.product_id, models.InventoryAllocation.quantity)
+        .join(models.SalesLine, models.SalesLine.id == models.InventoryAllocation.sales_line_id)
+        .join(models.Sales, models.Sales.id == models.SalesLine.sales_id)
+        .where(models.InventoryAllocation.allocation_stage == models.AllocationStage.sales)
+        .where(models.Sales.status != models.DocumentStatus.cancelled)
+    ).all():
+        allocated[pid] += Decimal(qty)
+
+    incoming: dict[int, Decimal] = defaultdict(Decimal)
+    for pid, qty in db.execute(
+        select(models.PurchaseOrderLine.product_id, models.PurchaseOrderRemaining.remaining_qty)
+        .join(models.PurchaseOrderRemaining, models.PurchaseOrderRemaining.purchase_order_line_id == models.PurchaseOrderLine.id)
+        .join(models.PurchaseOrder, models.PurchaseOrder.id == models.PurchaseOrderLine.purchase_order_id)
+        .where(models.PurchaseOrder.status != models.DocumentStatus.cancelled)
+    ).all():
+        incoming[pid] += Decimal(qty or 0)
+
+    product_ids = set(on_hand) | {p for p, v in allocated.items() if v} | {p for p, v in incoming.items() if v}
+    if not product_ids:
+        return []
+    stmt = select(models.Product).where(models.Product.id.in_(product_ids))
+    if keyword:
+        stmt = stmt.where((models.Product.product_code.ilike(f"%{keyword}%")) | (models.Product.name.ilike(f"%{keyword}%")))
+    products = db.execute(stmt.order_by(models.Product.product_code)).scalars().all()
+    return [
+        {
+            "product_id": p.id,
+            "product_code": p.product_code,
+            "product_name": p.name,
+            "unit": p.unit,
+            "on_hand": on_hand[p.id],
+            "allocated": allocated[p.id],
+            "incoming": incoming[p.id],
+            "available": on_hand[p.id] - allocated[p.id] + incoming[p.id],
+        }
+        for p in products
+    ]

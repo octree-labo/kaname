@@ -126,8 +126,23 @@ def confirm_orders(
     if quotation is None:
         raise HTTPException(status_code=404, detail="quotation not found")
 
+    if quotation.approval_status == models.ApprovalStatus.rejected:
+        raise HTTPException(status_code=400, detail="却下された見積からは受注できません")
+
     if payload.mode == "whole_document":
-        selections = [(line.id, line.quantity) for line in quotation.lines]
+        # 一部をすでに受注している見積で二重に受注しないよう、見積残だけを受注する。
+        # 数量が空欄（金額のみ）の明細は残数を持たないため、まだ一度も受注していない場合だけ引き継ぐ。
+        remaining = {r["id"]: r for r in crud.quotation_lines_with_remaining(db, quotation_id)}
+        selections = []
+        for line in quotation.lines:
+            r = remaining.get(line.id)
+            if line.quantity is None:
+                if r is None or not r["ordered_qty"]:
+                    selections.append((line.id, None))
+            elif r is not None and r["remaining_qty"] > 0:
+                selections.append((line.id, r["remaining_qty"]))
+        if not selections:
+            raise HTTPException(status_code=400, detail="この見積はすべて受注済みです")
     elif payload.mode == "selected_lines":
         selections = [(s.quotation_line_id, s.quantity) for s in payload.line_selections]
     else:
@@ -155,6 +170,21 @@ def confirm_orders(
         return crud.order_crud.create(db, header, lines_data, created_by=user.id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# ============================================================
+# 残のある上位明細（下位伝票の作成で「上位伝票から取り込む」）
+# ============================================================
+@router.get("/open-lines/{kind}", response_model=list[schemas.OpenLineOut], tags=["伝票連携"])
+def list_open_lines(
+    kind: str,
+    partner_id: int | None = None,
+    db: Session = Depends(get_db),
+):
+    """kind: quotation / order_for_purchase / order_for_sales / purchase_order / sales / purchase"""
+    if kind not in crud.OPEN_LINE_SOURCES:
+        raise HTTPException(status_code=404, detail=f"unknown kind: {kind}")
+    return crud.list_open_lines(db, kind, partner_id=partner_id)
 
 
 # ============================================================
@@ -395,7 +425,10 @@ def list_receipts(
 def create_receipt(payload: schemas.ReceiptIn, user: SessionUser = Depends(get_current_user), db: Session = Depends(get_db)):
     header = payload.model_dump(exclude={"lines"})
     lines_data = [line.model_dump() for line in payload.lines]
-    return crud.receipt_crud.create(db, header, lines_data, created_by=user.id)
+    try:
+        return crud.receipt_crud.create(db, header, lines_data, created_by=user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/receipts/{receipt_id}", response_model=schemas.ReceiptDetailOut, tags=["入金"])
@@ -442,7 +475,10 @@ def list_payments(
 def create_payment(payload: schemas.PaymentIn, user: SessionUser = Depends(get_current_user), db: Session = Depends(get_db)):
     header = payload.model_dump(exclude={"lines"})
     lines_data = [line.model_dump() for line in payload.lines]
-    return crud.payment_crud.create(db, header, lines_data, created_by=user.id)
+    try:
+        return crud.payment_crud.create(db, header, lines_data, created_by=user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/payments/{payment_id}", response_model=schemas.PaymentDetailOut, tags=["支払"])

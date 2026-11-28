@@ -3,7 +3,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/api";
-import type { InventoryStockOut, InventoryAllocationOut, WarehouseOut } from "@/lib/types";
+import type { InventoryStockOut, InventoryAllocationOut, InventoryAvailabilityOut, WarehouseOut } from "@/lib/types";
 import { formatNumber } from "@/lib/format";
 import { DataTable, type Column } from "@/components/DataTable";
 import { ProductPicker } from "@/components/ProductPicker";
@@ -20,11 +20,55 @@ interface StockRow extends InventoryStockOut {
 
 type AllocationRow = InventoryAllocationOut;
 
+interface AvailabilityRow extends InventoryAvailabilityOut {
+  id: number; // DataTable要件のため合成
+}
+
 export default function InventoryPage() {
   const [stockProductId, setStockProductId] = useState("");
   const [stockWarehouseId, setStockWarehouseId] = useState("");
   const [allocProductId, setAllocProductId] = useState("");
   const [allocStage, setAllocStage] = useState("");
+
+  const [availKeyword, setAvailKeyword] = useState("");
+  const availParams = new URLSearchParams();
+  if (availKeyword) availParams.set("keyword", availKeyword);
+  const { data: availability } = useSWR<InventoryAvailabilityOut[]>(
+    `/api/inventory/availability?${availParams.toString()}`,
+    fetcher
+  );
+  const availRows: AvailabilityRow[] = (availability ?? []).map((a) => ({ ...a, id: a.productId }));
+  const qtyCol = (key: keyof InventoryAvailabilityOut, label: string): Column<AvailabilityRow> => ({
+    key,
+    label,
+    align: "right",
+    sortable: true,
+    sortValue: (r) => Number(r[key]),
+    render: (r) => formatNumber(r[key] as string),
+  });
+  const availColumns: Column<AvailabilityRow>[] = [
+    {
+      key: "productName",
+      label: "商品",
+      sortable: true,
+      render: (r) => `${r.productCode} ${r.productName}`,
+    },
+    qtyCol("onHand", "在庫数"),
+    qtyCol("allocated", "引当中"),
+    qtyCol("incoming", "入荷予定"),
+    {
+      key: "available",
+      label: "使える見込み",
+      align: "right",
+      sortable: true,
+      sortValue: (r) => Number(r.available),
+      render: (r) => (
+        <span className={Number(r.available) < 0 ? "font-semibold text-red-600" : "font-semibold"}>
+          {formatNumber(r.available)} {r.unit}
+        </span>
+      ),
+    },
+  ];
 
   const { data: warehouses } = useSWR<WarehouseOut[]>("/api/warehouses", fetcher);
 
@@ -101,6 +145,22 @@ export default function InventoryPage() {
   return (
     <div className="flex h-full flex-col gap-8 overflow-hidden">
       <h1 className="shrink-0 text-xl font-semibold text-slate-900">在庫・引当</h1>
+
+      <section className="flex min-h-0 flex-1 flex-col">
+        <h2 className="shrink-0 text-sm font-semibold text-slate-700">使える在庫の見込み</h2>
+        <p className="mt-1 shrink-0 text-xs text-slate-600">
+          在庫数 − 引当中 + 入荷予定（発注残）。見積・受注の引当は、次の伝票に進んでいない残りの分だけを数えるので、同じ在庫を二重に押さえません。
+        </p>
+        <div className="mt-2 grid shrink-0 grid-cols-2 gap-3 rounded-lg border border-slate-200 bg-white p-3 sm:grid-cols-4">
+          <div>
+            <label htmlFor="availKeyword" className="block text-xs text-slate-600">商品コード・商品名</label>
+            <input id="availKeyword" value={availKeyword} onChange={(e) => setAvailKeyword(e.target.value)} className="w-full" />
+          </div>
+        </div>
+        <div className="mt-2 min-h-0 flex-1">
+          <DataTable columns={availColumns} rows={availRows} />
+        </div>
+      </section>
 
       <section className="flex min-h-0 flex-1 flex-col">
         <h2 className="shrink-0 text-sm font-semibold text-slate-700">在庫現在数</h2>

@@ -9,6 +9,8 @@ import { ProductLineFields } from "@/components/ProductLineFields";
 import { buildProductLinePayload, type ProductLineValue } from "@/lib/lineHelpers";
 import { useGuestGuard } from "@/lib/useGuestGuard";
 import { GuestBlockedModal } from "@/components/GuestBlockedModal";
+import { UpstreamImport } from "@/components/document/UpstreamImport";
+import type { OpenLineOut } from "@/lib/types";
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -16,11 +18,18 @@ function today(): string {
 
 interface ProductLineRow extends ProductLineValue {
   upstreamLineId: string;
+  /** 取り込んだ上位明細の表示（例: SO000012-1） */
+  upstreamText?: string;
 }
 
 interface AmountLineRow {
   amount: string;
   upstreamLineId: string;
+  upstreamText?: string;
+}
+
+function isBlankProductRow(l: ProductLineRow): boolean {
+  return !l.productId && !l.quantity && !l.unitPrice && !l.amount && !l.upstreamLineId;
 }
 
 export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
@@ -42,6 +51,34 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
       setProductLines((prev) => [...prev, { productId: "", quantity: "", unitPrice: "", amount: "", upstreamLineId: "" }]);
     } else {
       setAmountLines((prev) => [...prev, { amount: "", upstreamLineId: "" }]);
+    }
+  }
+
+  function importUpstream(lines: OpenLineOut[]) {
+    // 取引先がまだ空なら、取り込んだ伝票の取引先を入れる（受注→発注は取引先が別なので入れない）
+    if (!partnerId && config.openLinesKind !== "order_for_purchase" && lines.length > 0) {
+      setPartnerId(String(lines[0].partnerId));
+    }
+    if (config.lineKind === "product") {
+      const rows: ProductLineRow[] = lines.map((l) => {
+        const hasPrice = l.unitPrice !== null && l.remainingQty !== null;
+        return {
+          productId: String(l.productId),
+          quantity: l.remainingQty !== null ? String(Number(l.remainingQty)) : "",
+          unitPrice: hasPrice ? String(Number(l.unitPrice)) : "",
+          amount: hasPrice ? "" : String(Number(l.amount)),
+          upstreamLineId: String(l.lineId),
+          upstreamText: `${l.documentNo}-${l.lineNo}`,
+        };
+      });
+      setProductLines((prev) => [...prev.filter((l) => !isBlankProductRow(l)), ...rows]);
+    } else {
+      const rows: AmountLineRow[] = lines.map((l) => ({
+        amount: String(Number(l.remainingAmount ?? l.amount)),
+        upstreamLineId: String(l.lineId),
+        upstreamText: `${l.documentNo}-${l.lineNo}`,
+      }));
+      setAmountLines((prev) => [...prev.filter((l) => l.amount || l.upstreamLineId), ...rows]);
     }
   }
 
@@ -107,15 +144,18 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
         </div>
 
         <div>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <label className="block text-sm font-medium text-slate-700">明細</label>
-            <button
+            <div className="flex items-center gap-2">
+              <UpstreamImport config={config} partnerId={partnerId} onImport={importUpstream} />
+              <button
               type="button"
               onClick={addLine}
               className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
             >
               + 行を追加
-            </button>
+              </button>
+            </div>
           </div>
           <p className="mt-1 text-xs text-slate-600">
             数量・単価を両方入力すると金額は自動計算されます（取引先の丸め区分を適用）。どちらか一方でも空欄の場合は金額を直接入力してください。
@@ -129,7 +169,9 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
                       value={line}
                       onChange={(next) =>
                         setProductLines((prev) =>
-                          prev.map((l, idx) => (idx === i ? { ...next, upstreamLineId: l.upstreamLineId } : l))
+                          prev.map((l, idx) =>
+                            idx === i ? { ...next, upstreamLineId: l.upstreamLineId, upstreamText: l.upstreamText } : l
+                          )
                         )
                       }
                     />
@@ -140,11 +182,14 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
                           value={line.upstreamLineId}
                           onChange={(e) =>
                             setProductLines((prev) =>
-                              prev.map((l, idx) => (idx === i ? { ...l, upstreamLineId: e.target.value } : l))
+                              prev.map((l, idx) => (idx === i ? { ...l, upstreamLineId: e.target.value, upstreamText: undefined } : l))
                             )
                           }
                           className="mt-1 w-full"
                         />
+                        {line.upstreamText && (
+                          <p className="mt-0.5 text-[11px] text-sky-700">連携: {line.upstreamText}</p>
+                        )}
                       </div>
                     )}
                     <button
@@ -180,11 +225,14 @@ export function DocumentNewPage({ config }: { config: DocumentModuleConfig }) {
                           value={line.upstreamLineId}
                           onChange={(e) =>
                             setAmountLines((prev) =>
-                              prev.map((l, idx) => (idx === i ? { ...l, upstreamLineId: e.target.value } : l))
+                              prev.map((l, idx) => (idx === i ? { ...l, upstreamLineId: e.target.value, upstreamText: undefined } : l))
                             )
                           }
                           className="mt-1 w-full"
                         />
+                        {line.upstreamText && (
+                          <p className="mt-0.5 text-[11px] text-sky-700">連携: {line.upstreamText}</p>
+                        )}
                       </div>
                     )}
                     <button
